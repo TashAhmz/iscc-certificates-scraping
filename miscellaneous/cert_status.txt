@@ -1,0 +1,8 @@
+cert_status
+1 - valid
+5 - expired
+12 - terminated
+13 - withdrawn
+15 - suspended
+10 - expired ?
+20 - expired ?
