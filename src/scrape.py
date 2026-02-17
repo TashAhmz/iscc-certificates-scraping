@@ -5,6 +5,8 @@ import pandas as pd
 import re
 from mappings import *
 from thefuzz import fuzz, process
+import numpy as np
+import pycities as cityDatabase
 
 # URLs
 BASE_URL = "https://www.iscc-system.org/wp-admin/admin-ajax.php?action=get_wdtable&table_id=2"
@@ -21,6 +23,11 @@ HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
     "X-Requested-With": "XMLHttpRequest"
 }
+
+# Connect to the city database
+db = cityDatabase(fetch_fields=("id", "name", "country_name"))
+db.connect()
+
 
 # Column names (from table)
 COLUMNS = [
@@ -45,60 +52,77 @@ def _normalize_for_match(s: str) -> str:
     s = re.sub(r"\\s+", " ", s).strip()               # collapse spaces
     return s
 
-def add_asset_identifier_and_match(df_iscc: pd.DataFrame, gst_df: pd.DataFrame,
-                                   fuzzy_threshold: int = 80) -> pd.DataFrame:
+def add_asset_identifier_and_match(
+    df_iscc: pd.DataFrame,
+    gst_df: pd.DataFrame,
+    fuzzy_threshold: int = 80
+) -> pd.DataFrame:
     """
-    Creates:
-      - Asset_Identifier = Company_Name + City
-      - Match_Found = 1 if exact normalized match OR fuzzy partial match >= fuzzy_threshold
+    Creates/updates:
+      - Asset_Identifier: starts as 'Company_Name City' (no comma). If a match is found
+        in GST, it is overwritten with the matched GST 'Asset Identifier'.
+      - Match_Found: 1 if exact normalized match OR fuzzy partial match >= threshold; else 0.
     """
 
-    # Build ISCC Asset_Identifier
+    # 1) Build initial ISCC Asset_Identifier
+    if "Company_Name" not in df_iscc.columns or "City" not in df_iscc.columns:
+        raise KeyError("Expected columns 'Company_Name' and 'City' not found in ISCC DataFrame.")
     df_iscc["Asset_Identifier"] = [
         _asset_identifier_join(cn, city)
         for cn, city in zip(df_iscc["Company_Name"], df_iscc["City"])
     ]
 
-    # GST exact Asset Identifier column
+    # 2) Prepare GST lists and mappings
     GST_ASSET_ID_COL = "Asset Identifier"
     if GST_ASSET_ID_COL not in gst_df.columns:
         raise KeyError(f"Column '{GST_ASSET_ID_COL}' not found in GST assets DataFrame.")
 
-    # Prepare GST normalized list and raw list
     gst_raw_list = gst_df[GST_ASSET_ID_COL].astype(str).tolist()
     gst_norm_list = [_normalize_for_match(x) for x in gst_raw_list]
     gst_norm_set = set(gst_norm_list)
 
-    match_results = []
+    # Map normalized GST asset identifier -> original GST string (to overwrite with the *real* value)
+    norm_to_raw = {n: r for n, r in zip(gst_norm_list, gst_raw_list)}
 
+    match_flags = []
+    overwritten_asset_ids = []
+
+    # 3) For each ISCC asset, try exact normalized match, then fuzzy
     for asset_id in df_iscc["Asset_Identifier"]:
+        original_display = asset_id  # keep ISCC-composed value as fallback
         norm = _normalize_for_match(asset_id)
 
-        # --- 1) Exact normalized match ---
+        # Guard: if query is empty after normalization, mark no match
+        if norm == "":
+            match_flags.append(0)
+            overwritten_asset_ids.append(original_display)
+            continue
+
+        # --- Exact normalized match ---
         if norm in gst_norm_set:
-            match_results.append(1)
+            match_flags.append(1)
+            overwritten_asset_ids.append(norm_to_raw[norm])  # overwrite with GST exact string
             continue
 
-        # --- 2) Partial fuzzy match fallback ---
-        # We compare ISCC asset to all GST asset identifiers
-        # using token_set_ratio (handles missing Phase 1/2 etc.)
-        
-        if norm.strip() == "":
-            match_results.append(0)
-            continue
-
+        # --- Fuzzy fallback (handles Phase/Train/Unit suffixes etc.) ---
+        # We compare against raw GST strings so we can overwrite with the real GST display value
         best_match, best_score = process.extractOne(
-            asset_id,
+            original_display,
             gst_raw_list,
             scorer=fuzz.token_set_ratio
         )
 
-        if best_score >= fuzzy_threshold:
-            match_results.append(1)
+        if best_score >= fuzzy_threshold and isinstance(best_match, str):
+            match_flags.append(1)
+            overwritten_asset_ids.append(best_match)  # overwrite with the GST best match
         else:
-            match_results.append(0)
+            match_flags.append(0)
+            overwritten_asset_ids.append(original_display)  # keep original
 
-    df_iscc["Match_Found"] = match_results
+    # 4) Overwrite Asset_Identifier with the chosen value and set Match_Found
+    df_iscc["Asset_Identifier"] = overwritten_asset_ids
+    df_iscc["Match_Found"] = match_flags
+
     return df_iscc
 
 
@@ -145,31 +169,75 @@ def _build_lookup_exact_columns(gst_df: pd.DataFrame):
 
     return universe, to_short
 
-def overwrite_company_with_gst_shortname_exact(iscc_df: pd.DataFrame,
-                                               gst_df: pd.DataFrame,
-                                               score_threshold: int = 70) -> pd.DataFrame:
+
+def overwrite_company_with_gst_shortname_exact(
+    iscc_df: pd.DataFrame,
+    gst_df: pd.DataFrame,
+    score_threshold: int = 70
+) -> pd.DataFrame:
     """
     Overwrites iscc_df['Company_Name'] with GST 'Company/Producer Short Name'
-    when fuzzy match >= score_threshold, else leaves as-is.
+    when fuzzy match >= score_threshold AND the GST short name is non-empty.
+    Otherwise, leaves the original value unchanged.
+
+    Guarantees: never replaces a non-empty Company_Name with a blank.
     """
+
     if "Company_Name" not in iscc_df.columns:
         raise KeyError("Expected column 'Company_Name' not found in ISCC DataFrame.")
 
+    # Build lookup using your exact columns (as previously aligned)
+    # This function must return:
+    #   universe: List[str] of normalized GST names (producer + short)
+    #   to_short: Dict[normalized_name] -> short_name (original casing)
     universe, to_short = _build_lookup_exact_columns(gst_df)
 
-    # Perform matching and overwrite in place
+    # Helper to coerce to safe string for "leave as-is"
+    def _as_is(value):
+        # If original is NaN/None, return "" (or choose a placeholder if you prefer)
+        return "" if (value is None or (isinstance(value, float) and np.isnan(value))) else str(value)
+
+    # If the GST universe is empty, just return untouched
+    if not universe:
+        # Still normalize dtype to string to avoid later Excel issues
+        iscc_df["Company_Name"] = iscc_df["Company_Name"].astype(str)
+        return iscc_df
+
     new_values = []
     for original in iscc_df["Company_Name"]:
-        norm = _normalize(original)
+        original_safe = _as_is(original)
+
+        # If original is empty, there's nothing sensible to overwrite with "as-is"
+        # but we still try to find a match; otherwise keep it empty.
+        norm = _normalize(original_safe)
+
+        # If normalization yields empty string, we skip fuzzy and keep original
+        if not norm.strip():
+            new_values.append(original_safe)
+            continue
+
         match, score = process.extractOne(norm, universe, scorer=fuzz.ratio) if universe else (None, 0)
+
+        # Only overwrite if:
+        #  1) We found a match
+        #  2) Score >= threshold
+        #  3) The mapped short name is a non-empty string
         if match and score >= score_threshold:
-            new_values.append(to_short.get(match, original))
+            candidate = to_short.get(match, "")
+            candidate = candidate if isinstance(candidate, str) else _as_is(candidate)
+            candidate = candidate.strip()
+
+            if candidate:  # ensure not blank
+                new_values.append(candidate)
+            else:
+                # Leave as original if GST short name is empty or missing
+                new_values.append(original_safe)
         else:
-            new_values.append(original)
+            # No acceptable match → leave as-is
+            new_values.append(original_safe)
 
     iscc_df["Company_Name"] = new_values
     return iscc_df
-
 
 # Define a function to determine the facility grouping based on Scope* codes
     # It checks each abbreviation and returns the matching group(s)
@@ -188,6 +256,38 @@ def determine_facility_grouping(scope_text):
 def get_country_name(c):
     exempt_words = ["of", "the", "and"]
     return " ".join([w.capitalize() if w not in exempt_words else w.lower() for w in c.split()])
+
+def get_city_name(text, threshold=80, lang="en"):
+
+    if not isinstance(text, str) or not text.strip():
+            return None
+
+    tokens = [t.strip() for t in text.split(",") if t.strip()]
+
+    for token in tokens:
+        # ---- 1) direct match ----
+        direct = db.search(query=token, lang=lang, limit=1)  # [2](https://pypi.org/project/pycities/)[3](https://github.com/onstabb/pycities)
+        if direct:
+            return direct[0]["name"]
+
+        # ---- 2) fuzzy fallback on a small candidate set ----
+        candidates = db.search(query=token, lang=lang, limit=20)  # [2](https://pypi.org/project/pycities/)[3](https://github.com/onstabb/pycities)
+        if not candidates:
+            continue
+
+        candidate_names = [c.get("name", "") for c in candidates if c.get("name")]
+
+        # Use a robust scorer. token_set_ratio handles order/extra words nicely.
+        # thefuzz process.extractOne returns (best_match, score) [1](https://pypi.org/project/thefuzz/)
+        best = process.extractOne(token, candidate_names, scorer=fuzz.token_set_ratio)
+        if best:
+            best_name, best_score = best[0], best[1]
+            if best_score >= threshold:
+                return best_name
+
+    return None
+
+
 
 def get_lat_lon(link):
     if not isinstance(link, str) or "maps?q=" not in link:
@@ -418,6 +518,8 @@ def scrape_all(output_file, page_size, delay):
     df.insert(owner_index + 1, "City", [c.capitalize() for c in city_series])
     df.insert(owner_index + 2, "Country", country_series)
 
+    df["City"] = df["cert_owner"].apply(get_city_name)
+
     # Add the facility grouping column
     df.insert(
         df.columns.get_loc("Scope_Description") + 1,
@@ -436,12 +538,15 @@ def scrape_all(output_file, page_size, delay):
     df.insert(df.columns.get_loc("cert_map") + 1, "Latitude", df["cert_map"].apply(get_latitude))
     df.insert(df.columns.get_loc("cert_map") + 2, "Longitude", df["cert_map"].apply(get_longitude))
 
+    # Close city database
+    db.close()
+
     df = df.rename(columns=COLUMN_MAP)
 
     # Normalise to remove whitespaces and invisible characters that could break further logic
     df = df.map(clean_excel_string)
 
-    df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=51)
+    df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=67)
 
     df = add_asset_identifier_and_match(df, GST_ASSETS, fuzzy_threshold=80)
 
@@ -451,5 +556,5 @@ def scrape_all(output_file, page_size, delay):
     print(f"Scraping complete! Saved {len(df)} rows to {output_file}")
 
 # TODO: clean up this file from a commenting POV
-# TODO: create a new column called assest identifier and match certificate to an asset via the golden source of assests
+
 
