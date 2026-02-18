@@ -6,7 +6,8 @@ import re
 from mappings import *
 from thefuzz import fuzz, process
 import numpy as np
-import pycities as cityDatabase
+import geonamescache
+
 
 # URLs
 BASE_URL = "https://www.iscc-system.org/wp-admin/admin-ajax.php?action=get_wdtable&table_id=2"
@@ -18,16 +19,16 @@ GST_GEO = pd.read_excel("C:/Users/tashif.ahmed/OneDrive - Shell/T&S LCF - Analyt
 # GSTs of Assets filepath
 GST_ASSETS = pd.read_excel(r"C:/Users/tashif.ahmed/OneDrive - Shell/T&S LCF - Analytics, Digital, and Economics - Shared Documents/00. LCF Data Lakehouse/GSTs/GST Assets/00. Golden Source File of Asset Capacities.xlsm", sheet_name="GoldenSource")
 
+# Load city database
+gc = geonamescache.GeonamesCache(min_city_population=500)
+cities = gc.get_cities()
+CITY_NAMES = [c["name"] for c in cities.values()]
+
 # Headers
 HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
     "X-Requested-With": "XMLHttpRequest"
 }
-
-# Connect to the city database
-db = cityDatabase(fetch_fields=("id", "name", "country_name"))
-db.connect()
-
 
 # Column names (from table)
 COLUMNS = [
@@ -55,7 +56,7 @@ def _normalize_for_match(s: str) -> str:
 def add_asset_identifier_and_match(
     df_iscc: pd.DataFrame,
     gst_df: pd.DataFrame,
-    fuzzy_threshold: int = 80
+    fuzzy_threshold: int = 85
 ) -> pd.DataFrame:
     """
     Creates/updates:
@@ -173,7 +174,7 @@ def _build_lookup_exact_columns(gst_df: pd.DataFrame):
 def overwrite_company_with_gst_shortname_exact(
     iscc_df: pd.DataFrame,
     gst_df: pd.DataFrame,
-    score_threshold: int = 70
+    score_threshold: int = 85
 ) -> pd.DataFrame:
     """
     Overwrites iscc_df['Company_Name'] with GST 'Company/Producer Short Name'
@@ -257,36 +258,27 @@ def get_country_name(c):
     exempt_words = ["of", "the", "and"]
     return " ".join([w.capitalize() if w not in exempt_words else w.lower() for w in c.split()])
 
-def get_city_name(text, threshold=80, lang="en"):
+def get_city_name(cert_owner):
 
-    if not isinstance(text, str) or not text.strip():
+    exempt_words = ["ltd.", "ltd", "s.i.u",
+                     "s.a.", "s.a", "s.r.o.",
+                       "s.r.o", "s.i.", "s.i",
+                         "s.p.a", "s.p.a.", "s.l.u",
+                           "s.l.u", "a.s", "a.s.", "s.l", "s.l.", "inc."]
+    
+    if not isinstance(cert_owner, str) or not cert_owner.strip():
             return None
 
-    tokens = [t.strip() for t in text.split(",") if t.strip()]
+    tokens = [t.strip().lower() for t in cert_owner.split(",") if t.strip() and t.strip().lower() not in exempt_words][1:-1] # only including valid cities possibilties
+
+    if len(tokens) == 1:
+        return tokens[0].capitalize()
 
     for token in tokens:
-        # ---- 1) direct match ----
-        direct = db.search(query=token, lang=lang, limit=1)  # [2](https://pypi.org/project/pycities/)[3](https://github.com/onstabb/pycities)
-        if direct:
-            return direct[0]["name"]
-
-        # ---- 2) fuzzy fallback on a small candidate set ----
-        candidates = db.search(query=token, lang=lang, limit=20)  # [2](https://pypi.org/project/pycities/)[3](https://github.com/onstabb/pycities)
-        if not candidates:
-            continue
-
-        candidate_names = [c.get("name", "") for c in candidates if c.get("name")]
-
-        # Use a robust scorer. token_set_ratio handles order/extra words nicely.
-        # thefuzz process.extractOne returns (best_match, score) [1](https://pypi.org/project/thefuzz/)
-        best = process.extractOne(token, candidate_names, scorer=fuzz.token_set_ratio)
-        if best:
-            best_name, best_score = best[0], best[1]
-            if best_score >= threshold:
-                return best_name
+        if token not in exempt_words:
+            return token.capitalize()
 
     return None
-
 
 
 def get_lat_lon(link):
@@ -448,7 +440,7 @@ def split_cert_owner(value):
     if not value or not isinstance(value, str):
         return "", "", ""
 
-    parts = [p.strip() for p in value.split(",")]
+    parts = [p.strip() for p in value.split(",") if p.strip()]
 
     # Handle names with internal commas
     if len(parts) >= 3:
@@ -537,9 +529,6 @@ def scrape_all(output_file, page_size, delay):
     df.insert(df.columns.get_loc("cert_number") + 2, "Certificate_Class", df["Certificate_Type"].apply(map_certificate_class))
     df.insert(df.columns.get_loc("cert_map") + 1, "Latitude", df["cert_map"].apply(get_latitude))
     df.insert(df.columns.get_loc("cert_map") + 2, "Longitude", df["cert_map"].apply(get_longitude))
-
-    # Close city database
-    db.close()
 
     df = df.rename(columns=COLUMN_MAP)
 
