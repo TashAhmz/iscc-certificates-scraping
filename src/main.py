@@ -31,11 +31,7 @@ if __name__ == "__main__":
         print()
         create_certs_removed(prev_filename, output_file)
         print()
-<<<<<<< HEAD
         create_certs_changed(prev_filename, output_file, ignore_cols=["Map", "Company_Name", "City", "Asset_Identifier", "Match_Found"])
-=======
-        create_certs_changed(prev_filename, output_file, ignore_cols=["Map", "Company_Name", "City", "Asset_Identifier"])
->>>>>>> 3edeeec163bac95bc8636d5d29e4b8fc89a53075
         print()
 
         apply_styles(output_file, "Certificates Added")

@@ -283,8 +283,6 @@ def create_certs_changed(
         base_cols.append("Value_Changed")
     changed_df = changed_df[base_cols]
 
-    print(f"Changed certificates found: {len(changed_df)}")
-
     # Append as new sheet to the current workbook
     try:
         with pd.ExcelWriter(current_fn, engine=EXCEL_ENGINE, mode="a", if_sheet_exists="new") as writer:
