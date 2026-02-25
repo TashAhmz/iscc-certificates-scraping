@@ -189,3 +189,34 @@ SCOPE_DESCRIPTIONS = {
     "WH": "Warehouse",
     "WR36": "acc. to 36th BImSchV (double counting of biofuels in Germany)"
 }
+
+LEGAL_SUFFIXES = {
+    "bv","sa","gmbh","llc","ltd","ltda","co","company","ag","oy","kft",
+    "sp","zoo","inc","corp","sro","as", "sas", "sdn", "bhd", "tbk", "pvt", "asb", "pte"
+}
+
+STOPWORDS = {
+    # generic facility words
+    "site","plant","facility","factory","works","complex",
+    "terminal","depot","storage","warehouse","hub", "products",
+    "unit","phase","project","production","processing","operations","operation", "chem", "chemical", "chemicals", "fuels",
+
+    # transport / port
+    "port","harbor","harbour","dock","jetty","berth","quay",
+    "tank","tanks","tankfarm","pipeline","loading","unloading","import","export","bunker","bunkering",
+
+    # address words
+    "street","st","road","rd","avenue","ave","lane","ln","way","drive","dr","boulevard","blvd","place","pl",
+    "building","bldg","block","floor","suite","industrial","estate","zone","park","area",
+
+    # generic org words
+    "group","holding","holdings","international","global","services","solutions","resources","energy", "oil",
+    "bio", "global", "renewable", "trading", "industrial", "industria", "industries", "service", "technologies",
+
+    # generic geography words
+    "city","town","village","district","region","province",
+    "north","south","east","west","central", "paulo", "santo", "san",
+
+    # filler
+    "and","of","the","for","in","at","by","on", "la", "de", "pt", "el", "del", "los", "las", "da", "do", "dos", "van", "von"
+}
