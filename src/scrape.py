@@ -46,11 +46,9 @@ def _normalize_for_match(s: str) -> str:
     s = re.sub(r"\\s+", " ", s).strip()               # collapse spaces
     return s
 
-
 def add_asset_identifier_and_match(
     df_iscc: pd.DataFrame,
-    gst_df: pd.DataFrame,
-    fuzzy_threshold: int  # kept in signature to avoid breaking callers; unused now
+    gst_df: pd.DataFrame  # kept in signature to avoid breaking callers; unused now
 ) -> pd.DataFrame:
 
     # 1) Build initial ISCC Asset_Identifier
@@ -373,8 +371,6 @@ def get_city_name(cert_owner):
                     ". ltd", "-", "oils", "l.p.",
                     "llc", "l.l.c.", "llc.", "lp", "inc.."]
     
-    #tokens = [t.strip().lower() for t in cert_owner.split(",") if t.strip() and t.strip().lower() not in exempt_words][1:-1] # only including valid cities possibilties
-   
     parts = [p.strip().lower() for p in cert_owner.split(",") if p.strip()][1:-1]
 
     tokens = [
@@ -385,59 +381,19 @@ def get_city_name(cert_owner):
         and not any(w in CITY_STOPWORDS for w in tok.split())
         and not every_word_has_digit(tok)
     ]
-
-    country = get_country_name(cert_owner).lower()
+    
+    country = get_country_name(cert_owner.split(",")[-1].strip().lower() if parts else "").lower()
 
     # testing to see if this logic works to remove street names coming into the city column by mistake
     if len(tokens) == 1:
-        return " ".join([w for w in tokens[0].split() if not w.isnumeric()]).title()
+        return " ".join([w for w in tokens[0].split() if not any(ch.isdigit() for ch in w)]).title()
     elif len(tokens) >= 2:
-        if country in ("united states", "china"):
-            return " ".join([w for w in tokens[-2].split() if not w.isnumeric()]).title()
+        if country in ("united states", "china", "south korea", "brazil", "indonesia", "australia", "japan"):
+            return " ".join([w for w in tokens[-2].split() if not any(ch.isdigit() for ch in w)]).title()
         else:
-            return " ".join([w for w in tokens[-1].split() if not w.isnumeric()]).title()
+            return " ".join([w for w in tokens[-1].split() if not any(ch.isdigit() for ch in w)]).title()
         
     return None
-"""
-# Tom's axtract city function
-def extract_city(cert_holder):
-        if not isinstance(cert_holder, str):
-            return ""
-        
-        # Split the string by commas and remove empty parts
-        parts = [p.strip() for p in cert_holder.split(",") if p.strip()]
-        
-        if len(parts) >= 3:
-            second_last = parts[-2]
-            last = parts[-1]  # This line defines 'last'
-
-            # Special case: if second-last is "Korea", use third-last as city
-            if second_last.lower() == "korea":
-                return parts[-3]
-            
-            # Special case: if country is Hong Kong, city is also Hong Kong # make logic for Singapore
-            if last.lower() == "hong kong":
-                return "Hong Kong"
-
-            if last.lower() == "china":
-                return ""
-            
-            
-            # If second-last is a 2-letter code or a known country, use third-last. Specifically for USA States 
-            if (
-                (len(second_last) == 2 and second_last.isupper()) or
-                (second_last.lower() in [c.lower() for c in column_a_values])
-            ):
-                return parts[-3]
-            
-            # Otherwise, use second-last as city
-            return parts[-2]
-        
-        elif len(parts) == 2:
-            return parts[-2]
-        
-        return ""
-"""
 
 def get_lat_lon(link):
     if not isinstance(link, str) or "maps?q=" not in link:
@@ -693,9 +649,9 @@ def scrape_all(output_file, page_size, delay):
     # Normalise to remove whitespaces and invisible characters that could break further logic
     df = df.map(clean_excel_string)
 
-    df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=70)
+    df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=80)
 
-    df = add_asset_identifier_and_match(df, GST_ASSETS, fuzzy_threshold=85)
+    df = add_asset_identifier_and_match(df, GST_ASSETS)
 
     # Save and add styles
     df.to_excel(output_file, index=False, engine="openpyxl", sheet_name="Certificate Database")
