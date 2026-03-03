@@ -86,6 +86,7 @@ CERTIFICATE_TYPE_MAP = {
 
 # Manual corrections for country names that are incomplete or inconsistent
 MANUAL_COUNTRY_OVERRIDES = {
+    "Republic Of": "South Korea",
     "Republic of": "South Korea", 
     "Province of China": "Taiwan",
     "Bolivarian Republic of": "Venezuela",
@@ -211,7 +212,7 @@ STOPWORDS = {
 
     # generic org words
     "group","holding","holdings","international","global","services","solutions","resources","energy", "oil",
-    "bio", "global", "renewable", "trading", "industrial", "industria", "industries", "service", "technologies",
+    "bio", "global", "renewable", "trading", "industrial", "industria", "industries", "service", "technologies", "company",
 
     # generic geography words
     "city","town","village","district","region","province",
@@ -219,4 +220,26 @@ STOPWORDS = {
 
     # filler
     "and","of","the","for","in","at","by","on", "la", "de", "pt", "el", "del", "los", "las", "da", "do", "dos", "van", "von"
+}
+
+CITY_STOPWORDS = {
+    # generic facility words
+    "site","plant","facility","factory","works","complex",
+    "terminal","depot","storage","warehouse","hub", "products",
+    "unit","phase","project","production","processing","operations","operation", "chem", "chemical", "chemicals", "fuels",
+
+    # transport / port
+    "harbor","harbour","dock","jetty","berth","quay",
+    "tank","tanks","tankfarm","pipeline","loading","unloading","import","export","bunker","bunkering",
+
+    # generic org words
+    "group","holding","holdings","international","global","services","solutions","resources","energy", "oil",
+    "bio", "global", "renewable", "trading", "industrial", "industria", "industries", "service", "technologies", "company",
+
+    # address words
+    "street","st","road","rd","avenue","ave","lane","ln","way","drive","dr","boulevard","blvd","place","pl",
+    "building","bldg","block","floor","suite","industrial","estate","zone","area",
+
+    # special characters
+    "&"
 }

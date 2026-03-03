@@ -46,7 +46,6 @@ def _normalize_for_match(s: str) -> str:
     s = re.sub(r"\\s+", " ", s).strip()               # collapse spaces
     return s
 
-
 def add_asset_identifier_and_match(
     df_iscc: pd.DataFrame,
     gst_df: pd.DataFrame,
@@ -104,8 +103,6 @@ def add_asset_identifier_and_match(
             out.add(t)
 
         return out
-
-
 
     def _safe_str(x):
         return "" if x is None else str(x)
@@ -351,39 +348,56 @@ def determine_facility_grouping(scope_text):
             groupings.add(group)
     return ", ".join(sorted(groupings)) if groupings else "Unclassified"
 
-
 def get_country_name(c):
     exempt_words = ["of", "the", "and"]
     return " ".join([w.capitalize() if w not in exempt_words else w.lower() for w in c.split()])
 
 # old city function now using one that Tom developed
-"""
+
+def every_word_has_digit(tok: str) -> bool:
+    words = tok.split()
+    return bool(words) and all(any(ch.isdigit() for ch in w) for w in words)
+
 def get_city_name(cert_owner):
+
+    if not isinstance(cert_owner, str) or not cert_owner.strip():
+            return None
 
     exempt_words = ["ltd.", "ltd", "s.i.u",
                     "s.a.", "s.a", "s.r.o.",
                     "s.r.o", "s.i.", "s.i",
                     "s.p.a", "s.p.a.", "s.l.u",
                     "s.l.u", "a.s", "a.s.",
-                    "s.l", "s.l.", "inc.",
-                    ". ltd", "-"]
+                    "s.l", "s.l.", "inc.", "inc",
+                    ". ltd", "-", "oils", "l.p.",
+                    "llc", "l.l.c.", "llc.", "lp", "inc.."]
     
-    if not isinstance(cert_owner, str) or not cert_owner.strip():
-            return None
+    #tokens = [t.strip().lower() for t in cert_owner.split(",") if t.strip() and t.strip().lower() not in exempt_words][1:-1] # only including valid cities possibilties
+   
+    parts = [p.strip().lower() for p in cert_owner.split(",") if p.strip()][1:-1]
 
-    tokens = [t.strip().lower() for t in cert_owner.split(",") if t.strip() and t.strip().lower() not in exempt_words][1:-1] # only including valid cities possibilties
+    tokens = [
+        tok
+        for tok in parts
+        if tok
+        and tok not in exempt_words
+        and not any(w in CITY_STOPWORDS for w in tok.split())
+        and not every_word_has_digit(tok)
+    ]
 
+    country = get_country_name(cert_owner).lower()
+
+    # testing to see if this logic works to remove street names coming into the city column by mistake
     if len(tokens) == 1:
-        return tokens[0].title()
-
-    for token in tokens:
-        if token not in exempt_words:
-            return token.title()
-
+        return " ".join([w for w in tokens[0].split() if not w.isnumeric()]).title()
+    elif len(tokens) >= 2:
+        if country in ("united states", "china"):
+            return " ".join([w for w in tokens[-2].split() if not w.isnumeric()]).title()
+        else:
+            return " ".join([w for w in tokens[-1].split() if not w.isnumeric()]).title()
+        
     return None
-
 """
-
 # Tom's axtract city function
 def extract_city(cert_holder):
         if not isinstance(cert_holder, str):
@@ -403,6 +417,9 @@ def extract_city(cert_holder):
             # Special case: if country is Hong Kong, city is also Hong Kong # make logic for Singapore
             if last.lower() == "hong kong":
                 return "Hong Kong"
+
+            if last.lower() == "china":
+                return ""
             
             
             # If second-last is a 2-letter code or a known country, use third-last. Specifically for USA States 
@@ -419,7 +436,7 @@ def extract_city(cert_holder):
             return parts[-2]
         
         return ""
-
+"""
 
 def get_lat_lon(link):
     if not isinstance(link, str) or "maps?q=" not in link:
@@ -650,7 +667,7 @@ def scrape_all(output_file, page_size, delay):
     df.insert(owner_index + 1, "City", [c.capitalize() for c in city_series])
     df.insert(owner_index + 2, "Country", country_series)
 
-    df["City"] = df["cert_owner"].apply(extract_city)
+    df["City"] = df["cert_owner"].apply(get_city_name)
 
     # Add the facility grouping column
     df.insert(
@@ -675,7 +692,7 @@ def scrape_all(output_file, page_size, delay):
     # Normalise to remove whitespaces and invisible characters that could break further logic
     df = df.map(clean_excel_string)
 
-    df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=85)
+    df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=70)
 
     df = add_asset_identifier_and_match(df, GST_ASSETS, fuzzy_threshold=85)
 

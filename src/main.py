@@ -17,7 +17,7 @@ output_file = f"out/{filename}"
 if __name__ == "__main__":
     scrape_all(delay=DELAY, page_size=ROWS_LOADED, output_file=output_file)
     apply_styles(output_file, "Certificate Database")
-
+"""
     try: 
         with open("src/utils.json", "r") as f1: 
             data = json.load(f1)
@@ -43,3 +43,4 @@ if __name__ == "__main__":
             json.dump({"prev_file_name": f"{output_file}"}, f2)
     except json.JSONDecodeError:
         print(f"{f2.name} is empty")
+"""
