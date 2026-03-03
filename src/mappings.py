@@ -212,7 +212,11 @@ STOPWORDS = {
 
     # generic org words
     "group","holding","holdings","international","global","services","solutions","resources","energy", "oil",
+<<<<<<< HEAD
     "bio", "global", "renewable", "trading", "industrial", "industria", "industries", "service", "technologies", "company",
+=======
+    "bio", "global", "renewable", "trading", "industrial", "industria", "industries", "service", "technologies",
+>>>>>>> 619d8a63aa71804771aa4d55458fe215e80faa15
 
     # generic geography words
     "city","town","village","district","region","province",
@@ -221,6 +225,7 @@ STOPWORDS = {
     # filler
     "and","of","the","for","in","at","by","on", "la", "de", "pt", "el", "del", "los", "las", "da", "do", "dos", "van", "von"
 }
+<<<<<<< HEAD
 
 CITY_STOPWORDS = {
     # generic facility words
@@ -243,3 +248,5 @@ CITY_STOPWORDS = {
     # special characters
     "&"
 }
+=======
+>>>>>>> 619d8a63aa71804771aa4d55458fe215e80faa15

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 S = {
     # generic facility words
     "site","plant","facility","factory","works","complex",
@@ -62,3 +63,8 @@ elif len(tokens) >= 2:
         print(" ".join([w for w in tokens[-1].split() if not w.isnumeric()]).title())
 
 
+=======
+t = [1, 2, 3, 4, 5, 6, 7]
+print(t[1:-1])
+print("hello world".capitalize())
+>>>>>>> 619d8a63aa71804771aa4d55458fe215e80faa15
