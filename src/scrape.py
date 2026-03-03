@@ -105,11 +105,6 @@ def add_asset_identifier_and_match(
 
         return out
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 619d8a63aa71804771aa4d55458fe215e80faa15
     def _safe_str(x):
         return "" if x is None else str(x)
 
@@ -359,7 +354,6 @@ def get_country_name(c):
     return " ".join([w.capitalize() if w not in exempt_words else w.lower() for w in c.split()])
 
 # old city function now using one that Tom developed
-<<<<<<< HEAD
 
 def every_word_has_digit(tok: str) -> bool:
     words = tok.split()
@@ -367,19 +361,6 @@ def every_word_has_digit(tok: str) -> bool:
 
 def get_city_name(cert_owner):
 
-=======
-"""
-def get_city_name(cert_owner):
-
-    exempt_words = ["ltd.", "ltd", "s.i.u",
-                    "s.a.", "s.a", "s.r.o.",
-                    "s.r.o", "s.i.", "s.i",
-                    "s.p.a", "s.p.a.", "s.l.u",
-                    "s.l.u", "a.s", "a.s.",
-                    "s.l", "s.l.", "inc.",
-                    ". ltd", "-"]
-    
->>>>>>> 619d8a63aa71804771aa4d55458fe215e80faa15
     if not isinstance(cert_owner, str) or not cert_owner.strip():
             return None
 
@@ -409,7 +390,6 @@ def get_city_name(cert_owner):
 
     # testing to see if this logic works to remove street names coming into the city column by mistake
     if len(tokens) == 1:
-<<<<<<< HEAD
         return " ".join([w for w in tokens[0].split() if not w.isnumeric()]).title()
     elif len(tokens) >= 2:
         if country in ("united states", "china"):
@@ -417,14 +397,6 @@ def get_city_name(cert_owner):
         else:
             return " ".join([w for w in tokens[-1].split() if not w.isnumeric()]).title()
         
-=======
-        return tokens[0].title()
-
-    for token in tokens:
-        if token not in exempt_words:
-            return token.title()
-
->>>>>>> 619d8a63aa71804771aa4d55458fe215e80faa15
     return None
 """
 # Tom's axtract city function
@@ -439,23 +411,6 @@ def extract_city(cert_holder):
             second_last = parts[-2]
             last = parts[-1]  # This line defines 'last'
 
-<<<<<<< HEAD
-=======
-"""
-
-# Tom's axtract city function
-def extract_city(cert_holder):
-        if not isinstance(cert_holder, str):
-            return ""
-        
-        # Split the string by commas and remove empty parts
-        parts = [p.strip() for p in cert_holder.split(",") if p.strip()]
-        
-        if len(parts) >= 3:
-            second_last = parts[-2]
-            last = parts[-1]  # This line defines 'last'
-
->>>>>>> 619d8a63aa71804771aa4d55458fe215e80faa15
             # Special case: if second-last is "Korea", use third-last as city
             if second_last.lower() == "korea":
                 return parts[-3]
@@ -463,12 +418,9 @@ def extract_city(cert_holder):
             # Special case: if country is Hong Kong, city is also Hong Kong # make logic for Singapore
             if last.lower() == "hong kong":
                 return "Hong Kong"
-<<<<<<< HEAD
 
             if last.lower() == "china":
                 return ""
-=======
->>>>>>> 619d8a63aa71804771aa4d55458fe215e80faa15
             
             
             # If second-last is a 2-letter code or a known country, use third-last. Specifically for USA States 
@@ -485,11 +437,7 @@ def extract_city(cert_holder):
             return parts[-2]
         
         return ""
-<<<<<<< HEAD
 """
-=======
-
->>>>>>> 619d8a63aa71804771aa4d55458fe215e80faa15
 
 def get_lat_lon(link):
     if not isinstance(link, str) or "maps?q=" not in link:
@@ -720,7 +668,7 @@ def scrape_all(output_file, page_size, delay):
     df.insert(owner_index + 1, "City", [c.capitalize() for c in city_series])
     df.insert(owner_index + 2, "Country", country_series)
 
-    df["City"] = df["cert_owner"].apply(extract_city)
+    df["City"] = df["cert_owner"].apply(get_city_name)
 
     # Add the facility grouping column
     df.insert(
@@ -745,11 +693,7 @@ def scrape_all(output_file, page_size, delay):
     # Normalise to remove whitespaces and invisible characters that could break further logic
     df = df.map(clean_excel_string)
 
-<<<<<<< HEAD
     df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=70)
-=======
-    df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=85)
->>>>>>> 619d8a63aa71804771aa4d55458fe215e80faa15
 
     df = add_asset_identifier_and_match(df, GST_ASSETS, fuzzy_threshold=85)
 
