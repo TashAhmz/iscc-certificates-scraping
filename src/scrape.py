@@ -55,7 +55,7 @@ def add_asset_identifier_and_match(
     if "Company_Name" not in df_iscc.columns or "City" not in df_iscc.columns:
         raise KeyError("Expected columns 'Company_Name' and 'City' not found in ISCC DataFrame.")
 
-    df_iscc["Asset_Identifier"] = [
+    df_iscc["Company_City"] = [
         _asset_identifier_join(cn, city)
         for cn, city in zip(df_iscc["Company_Name"], df_iscc["City"])
     ]
@@ -139,7 +139,7 @@ def add_asset_identifier_and_match(
         company_name = row.Company_Name
         city_name = row.City
         cert_holder = getattr(row, "Certificate_Holder", None)
-        asset_id = row.Asset_Identifier
+        asset_id = row.Company_City
 
         original_display = asset_id
         norm = _normalize_for_match(asset_id)
@@ -187,7 +187,7 @@ def add_asset_identifier_and_match(
                 # CHANGED acceptance rules:
                 # A) combined: at least 1 hit on both
                 # B) company-only: >= 2 unique company hits AND 0 city hits
-                # C) city-only: >= 2 unique city hits AND 0 company hits
+               
                 combined_ok = (comp_hit > 0 and city_hit > 0)
                 company_only_ok = (comp_hit >= 2 and city_hit == 0)
 
@@ -216,7 +216,7 @@ def add_asset_identifier_and_match(
         match_flags.append(0)
         overwritten_asset_ids.append(original_display)
 
-    df_iscc["Asset_Identifier"] = overwritten_asset_ids
+    df_iscc["Company_City"] = overwritten_asset_ids
     df_iscc["Match_Found"] = match_flags
     return df_iscc
 
@@ -369,7 +369,8 @@ def get_city_name(cert_owner):
                     "s.l.u", "a.s", "a.s.",
                     "s.l", "s.l.", "inc.", "inc",
                     ". ltd", "-", "oils", "l.p.",
-                    "llc", "l.l.c.", "llc.", "lp", "inc.."]
+                    "llc", "l.l.c.", "llc.", "lp",
+                    "inc..", "city", ".ltd.", "ltd .", "/", "-"]
     
     parts = [p.strip().lower() for p in cert_owner.split(",") if p.strip()][1:-1]
 
@@ -388,7 +389,7 @@ def get_city_name(cert_owner):
     if len(tokens) == 1:
         return " ".join([w for w in tokens[0].split() if not any(ch.isdigit() for ch in w)]).title()
     elif len(tokens) >= 2:
-        if country in ("united states", "china", "south korea", "brazil", "indonesia", "australia", "japan"):
+        if country in ("united states", "china", "republic of", "brazil", "indonesia", "australia", "japan"):
             return " ".join([w for w in tokens[-2].split() if not any(ch.isdigit() for ch in w)]).title()
         else:
             return " ".join([w for w in tokens[-1].split() if not any(ch.isdigit() for ch in w)]).title()
@@ -649,9 +650,16 @@ def scrape_all(output_file, page_size, delay):
     # Normalise to remove whitespaces and invisible characters that could break further logic
     df = df.map(clean_excel_string)
 
-    df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=80)
+    df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=75)
 
     df = add_asset_identifier_and_match(df, GST_ASSETS)
+
+    # Add new column called Asset_Identifier for ones where match found, otherwise keep blank
+    df["Asset_Identifier"] = np.where(
+        df["Match_Found"] == 1,
+        df["Company_City"],
+        None
+    )
 
     # Save and add styles
     df.to_excel(output_file, index=False, engine="openpyxl", sheet_name="Certificate Database")
