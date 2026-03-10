@@ -193,18 +193,22 @@ SCOPE_DESCRIPTIONS = {
 
 LEGAL_SUFFIXES = {
     "bv","sa","gmbh","llc","ltd","ltda","co","company","ag","oy","kft",
-    "sp","zoo","inc","corp","sro","as", "sas", "sdn", "bhd", "tbk", "pvt", "asb", "pte"
+    "sp","zoo","inc","corp","sro","as", "sas", "sdn", "bhd", "tbk", "pvt",
+    "asb", "pte", "nv", "sau", "srl", "nv"
 }
 
 STOPWORDS = {
     # generic facility words
     "site","plant","facility","factory","works","complex",
     "terminal","depot","storage","warehouse","hub", "products",
-    "unit","phase","project","production","processing","operations","operation", "chem", "chemical", "chemicals", "fuels",
+    "unit","phase","project","production","processing","operations",
+    "operation", "chem", "chemical", "chemicals", "fuels", "petrochemicals",
+    "refining", "petrochemical", "additives", "raffinage", "raffinerie", "fluids",
 
     # transport / port
     "port","harbor","harbour","dock","jetty","berth","quay",
-    "tank","tanks","tankfarm","pipeline","loading","unloading","import","export","bunker","bunkering",
+    "tank","tanks","tankfarm","pipeline","loading","unloading",
+    "import","export","bunker","bunkering", "marine",
 
     # address words
     "street","st","road","rd","avenue","ave","lane","ln","way","drive","dr","boulevard","blvd","place","pl",
@@ -212,7 +216,8 @@ STOPWORDS = {
 
     # generic org words
     "group","holding","holdings","international","global","services","solutions","resources","energy", "oil",
-    "bio", "global", "renewable", "trading", "industrial", "industria", "industries", "service", "technologies", "company",
+    "bio", "global", "renewable", "trading", "industrial", "industria", "industries", "service", "technologies",
+    "company", "marketing", "limited", "bioenergy", "special", "biofuels",
 
     # generic geography words
     "city","town","village","district","region","province",
@@ -223,18 +228,22 @@ STOPWORDS = {
 }
 
 CITY_STOPWORDS = {
-    # generic facility words
+   # generic facility words
     "site","plant","facility","factory","works","complex",
     "terminal","depot","storage","warehouse","hub", "products",
-    "unit","phase","project","production","processing","operations","operation", "chem", "chemical", "chemicals", "fuels",
-
-    # transport / port
-    "harbor","harbour","dock","jetty","berth","quay",
-    "tank","tanks","tankfarm","pipeline","loading","unloading","import","export","bunker","bunkering",
+    "unit","phase","project","production","processing","operations",
+    "operation", "chem", "chemical", "chemicals", "fuels", "petrochemicals",
+    "refining", "petrochemical", "additives", "raffinage", "raffinerie", "fluids",
+    
+   # transport / port
+    "port","harbor","harbour","dock","jetty","berth","quay",
+    "tank","tanks","tankfarm","pipeline","loading","unloading",
+    "import","export","bunker","bunkering", "marine",
 
     # generic org words
     "group","holding","holdings","international","global","services","solutions","resources","energy", "oil",
-    "bio", "global", "renewable", "trading", "industrial", "industria", "industries", "service", "technologies", "company",
+    "bio", "global", "renewable", "trading", "industrial", "industria", "industries", "service", "technologies",
+    "company", "marketing", "limited", "bioenergy", "special", "biofuels",
 
     # address words
     "street","st","road","rd","avenue","ave","lane","ln","way","drive","dr","boulevard","blvd","place","pl",
