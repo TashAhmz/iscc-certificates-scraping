@@ -288,6 +288,9 @@ def add_asset_identifier_and_match(
     return df_iscc
 
 
+import re
+
+
 def _normalize(text: str) -> str:
     """Light normalization + stopword removal to improve fuzzy company matches."""
     if not isinstance(text, str):
@@ -295,30 +298,31 @@ def _normalize(text: str) -> str:
 
     text = text.lower()
 
-    # your existing removals (kept the same)
     removals = [
-        " inc", " llc", " l.l.c", " lp", " l.p.", " bv", " b.v.", " ltd", " co", " company",
-        " limited", ".", ",", "&", "&amp;", "ltd.", "pte.", "gmbh", " ag", " plc", " s.p.a"
+        " inc", " llc", " l.l.c", " lp", " l.p.", " bv", " b.v.", " ltd",
+        " co", "co.", " company", " limited",
+        ".", ",", "&", "&amp;", "&amp;amp;",
+        "ltd.", "pte.", "gmbh", " plc", " s.p.a"
     ]
 
-    # keep your replace approach for now (minimal change)
     for w in removals:
         text = text.replace(w, " ")
-        
-    for x in LEGAL_SUFFIXES:
-        text = text.replace(x, " ")
+
+    # ✅ remove legal suffixes as whole tokens only (prevents 'cargo' being mangled by 'ag')
+    if LEGAL_SUFFIXES:
+        pattern = r"\b(?:%s)\b" % "|".join(map(re.escape, LEGAL_SUFFIXES))
+        text = re.sub(pattern, " ", text)
 
     # collapse whitespace
     text = " ".join(text.split())
 
-    # ✅ NEW: remove stopwords at token level (uses your existing STOPWORDS)
-    # ensure STOPWORDS contains lowercase tokens
-    if "STOPWORDS" in globals() and STOPWORDS:
-        sw = STOPWORDS if isinstance(STOPWORDS, set) else set(STOPWORDS)
-        tokens = [t for t in text.split() if t and t not in sw]
+    # ✅ remove stopwords at token level
+    if STOPWORDS:
+        tokens = [t for t in text.split() if t not in STOPWORDS]
         text = " ".join(tokens)
 
     return text
+
 
 def _build_lookup_exact_columns(gst_df: pd.DataFrame, stopwords: set[str]):
     CP_COL = "Company/Producer"
@@ -365,7 +369,7 @@ def overwrite_company_with_gst_shortname_exact(
     universe, to_short = _build_lookup_exact_columns(gst_df, STOPWORDS)
 
     def _as_is(value):
-        return "" if (value is None or (isinstance(value, float) and np.isnan(value))) else str(value)
+        return "" if pd.isna(value) else str(value)
 
     if not universe:
         iscc_df["Company_Name"] = iscc_df["Company_Name"].astype(str)

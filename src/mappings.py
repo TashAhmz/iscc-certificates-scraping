@@ -224,7 +224,12 @@ STOPWORDS = {
     "north","south","east","west","central", "paulo", "santo", "san",
 
     # filler
-    "and","of","the","for","in","at","by","on", "la", "de", "pt", "el", "del", "los", "las", "da", "do", "dos", "van", "von"
+    "and","of","the","for","in","at","by","on", "la", "de", "pt", "el", "del", "los", "las", "da", "do", "dos", "van", "von",
+
+    #countries
+    "France", "UK", "USA" "Germany", "Netherlands", "Italy", "Spain", "Belgium", "Poland", "Sweden", "Denmark",
+    "Finland", "Austria", "Ireland", "Portugal", "Greece", "Norway", "Switzerland", "Czech Republic", "Hungary", "Romania", "Slovakia", "Bulgaria",
+    "Croatia", "Lithuania", "Slovenia", "Latvia", "Estonia", "Cyprus", "Luxembourg", "Malta", "Iceland", "Liechtenstein", "Monaco", "Andorra", "San Marino", "Vatican City"
 }
 
 CITY_STOPWORDS = {
@@ -234,7 +239,7 @@ CITY_STOPWORDS = {
     "unit","phase","project","production","processing","operations",
     "operation", "chem", "chemical", "chemicals", "fuels", "petrochemicals",
     "refining", "petrochemical", "additives", "raffinage", "raffinerie", "fluids",
-    
+
    # transport / port
     "port","harbor","harbour","dock","jetty","berth","quay",
     "tank","tanks","tankfarm","pipeline","loading","unloading",

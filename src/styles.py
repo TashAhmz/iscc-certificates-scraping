@@ -46,7 +46,7 @@ def apply_styles(output_file, worksheet):
     # ISCC derived columns
     colour_columns(["City", "Country", "Company_Name", "Certificate_Class", "Scope_Description", "Processing_Unit_Type_Description", "Latitude", "Longitude", "Value_Changed"], "10CFE7B7")
     # LCF dervied categories
-    colour_columns(["Certificate_Type", "Facility_Grouping", "Region", "Sub_Region", "Asset_Identifier", "Match_Found"], "10B7DFE7")
+    colour_columns(["Certificate_Type", "Facility_Grouping", "Region", "Sub_Region", "Company_City", "Match_Found", "Asset_Identifier"], "10B7DFE7")
 
     wb.save(output_file)
 
