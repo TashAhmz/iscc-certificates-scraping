@@ -25,6 +25,7 @@ previous scrapes/
 *.log
 tmp/
 temp/
+src/utils.json
 
 # OS noise
 .DS_Store
@@ -32,3 +33,7 @@ Thumbs.db
 
 # Git & environment
 *.env
+
+# Python files
+src/help.py
+src/help2.py
