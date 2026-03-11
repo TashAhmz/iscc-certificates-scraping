@@ -204,6 +204,7 @@ STOPWORDS = {
     "unit","phase","project","production","processing","operations",
     "operation", "chem", "chemical", "chemicals", "fuels", "petrochemicals",
     "refining", "petrochemical", "additives", "raffinage", "raffinerie", "fluids",
+    "plastic", "recycling",
 
     # transport / port
     "port","harbor","harbour","dock","jetty","berth","quay",
