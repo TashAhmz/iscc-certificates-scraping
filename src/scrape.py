@@ -19,6 +19,10 @@ GST_GEO = pd.read_excel("C:/Users/tashif.ahmed/OneDrive - Shell/T&S LCF - Analyt
 # GSTs of Assets filepath
 GST_ASSETS = pd.read_excel(r"C:/Users/tashif.ahmed/OneDrive - Shell/T&S LCF - Analytics, Digital, and Economics - Shared Documents/00. LCF Data Lakehouse/GSTs/GST Assets/00. Golden Source File of Asset Capacities.xlsm", sheet_name="GoldenSource")
 
+countries = set(c.lower() for c in ALL_COUNTRIES)
+stopwords = set(s.lower() for s in STOPWORDS)   
+city_stopwords = set(s.lower() for s in CITY_STOPWORDS)
+
 # Headers
 HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -118,7 +122,9 @@ def add_asset_identifier_and_match(
                 continue
             if t in LEGAL_SUFFIXES:
                 continue
-            if t in STOPWORDS:
+            if t in stopwords:
+                continue
+            if t in countries:
                 continue
             out.add(t)
         return out
@@ -317,8 +323,11 @@ def _normalize(text: str) -> str:
     text = " ".join(text.split())
 
     # ✅ remove stopwords at token level
-    if STOPWORDS:
-        tokens = [t for t in text.split() if t not in STOPWORDS]
+    if stopwords:
+        tokens = [t for t in text.split() if t not in stopwords]
+        text = " ".join(tokens)
+    if countries:
+        tokens = [t for t in text.split() if t not in countries]
         text = " ".join(tokens)
 
     return text
@@ -447,7 +456,7 @@ def get_city_name(cert_owner):
         for tok in parts
         if tok
         and tok not in exempt_words
-        and not any(w in CITY_STOPWORDS for w in tok.split())
+        and not any(w in city_stopwords for w in tok.split())
         and not every_word_has_digit(tok)
     ]
     
@@ -457,7 +466,7 @@ def get_city_name(cert_owner):
     if len(tokens) == 1:
         return " ".join([w for w in tokens[0].split() if not any(ch.isdigit() for ch in w)]).title()
     elif len(tokens) >= 2:
-        if country in ("united states", "china", "republic of", "brazil", "indonesia", "australia", "japan"):
+        if country in ("united states", "china", "republic of", "brazil", "indonesia", "australia", "japan", "canada"):
             return " ".join([w for w in tokens[-2].split() if not any(ch.isdigit() for ch in w)]).title()
         else:
             return " ".join([w for w in tokens[-1].split() if not any(ch.isdigit() for ch in w)]).title()
