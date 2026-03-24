@@ -688,7 +688,7 @@ def scrape_all(output_file, page_size, delay):
     df.insert(scope_index, "Scope_Description", df["cert_scope"].apply(map_multiple_scopes))
 
     # Insert "Processing_Unit_Type_Description"
-    df.insert(scope_index + 2, "Processing_Unit_Type_Description", df["cert_scope"].apply(map_multiple_scopes))
+    df.insert(scope_index + 2, "Processing_Unit_Type_Description", df["cert_processingunittype"].apply(map_multiple_scopes))
 
     # Extract new cert_owner fields
     company_series, city_series, country_series = zip(*df["cert_owner"].apply(split_cert_owner))
