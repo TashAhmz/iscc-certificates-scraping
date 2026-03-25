@@ -738,6 +738,17 @@ def scrape_all(output_file, page_size, delay):
         None
     )
 
+    # extra cleaning
+    df = df.replace(r"^\s*nan\s*$", "", regex=True)
+    
+    exclude = {"Scope_Description", "Processing_Unit_Type_Description",
+                "Map", "Certificate", "Audit_Report", "Products", "Add-ons** /CTS"} 
+
+    text_cols = [c for c in df.select_dtypes(include="object").columns if c not in exclude]
+
+    df[text_cols] = df[text_cols].replace(r'[\\/\"\'„“»«]', "", regex=True)
+
+
     # Save and add styles
     df.to_excel(output_file, index=False, engine="openpyxl", sheet_name="Certificate Database")
 
