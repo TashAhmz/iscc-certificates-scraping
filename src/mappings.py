@@ -2,20 +2,20 @@
 FACILITY_GROUPING_MAP = {
     
     # Non-liquid biofuels assets
-    "BG": "Non-liquid biofuels assets",
-    "BM": "Non-liquid biofuels assets",
-    "LNGT": "Non-liquid biofuels assets",
-    "LP": "Non-liquid biofuels assets",
+    "BG": "Non-liquid Biofuels Assets",
+    "BM": "Non-liquid Biofuels Assets",
+    "LNGT": "Non-liquid Biofuels Assets",
+    "LP": "Non-liquid Biofuels Assets",
     # Add here
 
     # LCF Trading liquid biofuels assets
-    "BP": "LCF Trading liquid biofuels assets",
-    "CPP": "LCF Trading liquid biofuels assets",
-    "EP": "LCF Trading liquid biofuels assets",
-    "ET": "LCF Trading liquid biofuels assets",
-    "MT": "LCF Trading liquid biofuels assets",
-    "HEFA": "LCF Trading liquid biofuels assets",
-    "HVO": "LCF Trading liquid biofuels assets",
+    "BP": "LCF Trading Liquid Biofuels Assets",
+    "CPP": "LCF Trading Liquid Biofuels Assets",
+    "EP": "LCF Trading Liquid Biofuels Assets",
+    "ET": "LCF Trading Liquid Biofuels Assets",
+    "MT": "LCF Trading Liquid Biofuels Assets",
+    "HEFA": "LCF Trading Liquid Biofuels Assets",
+    "HVO": "LCF Trading Liquid Biofuels Assets",
     # Add here
 
     # Feedstock for Biofuels Companies
