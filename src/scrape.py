@@ -509,6 +509,8 @@ def map_certificate_type(cert_id):
         return "Aviation"
     elif id == "DE B":
         return "Legacy"
+    elif id == "EU ISCC":
+        return "Mandated"
     else:
         return CERTIFICATE_TYPE_MAP.get(id, "Undefined")
 
