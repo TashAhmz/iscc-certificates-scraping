@@ -17,6 +17,7 @@ env/
 # --- Data files ---
 # Ignore generated Excel/CSV outputs
 out/
+miscellaneous/
 previous scrapes/
 *.xlsx
 *.csv
