@@ -1,0 +1,128 @@
+import requests
+import pdfplumber
+import pandas as pd
+from io import BytesIO
+import urllib3
+import re
+from datetime import datetime
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def extract_tables_from_iscc_pdf(
+    pdf_url: str,
+    skip_first_page: bool = True
+) -> list[pd.DataFrame]:
+    """
+    Downloads an ISCC certificate PDF into memory and extracts tables
+    from all pages except the first (optional).
+    Returns a list of DataFrames, each with source_page and table_index columns.
+    """
+
+    response = requests.get(
+        pdf_url,
+        timeout=30,
+        verify=False
+    )
+    response.raise_for_status()
+
+    pdf_bytes = BytesIO(response.content)
+    all_tables = []
+
+    with pdfplumber.open(pdf_bytes) as pdf:
+        start_idx = 1 if skip_first_page else 0
+
+        for page_number, page in enumerate(pdf.pages[start_idx:], start=start_idx + 1):
+            tables = page.extract_tables()
+
+            for table_idx, table in enumerate(tables):
+                if not table or len(table) < 2:
+                    continue
+
+                df = pd.DataFrame(table[1:], columns=table[0])
+                df["source_page"] = page_number
+                df["table_index"] = table_idx
+                all_tables.append(df)
+
+    return all_tables
+
+
+def _sanitize_sheet_name(name: str) -> str:
+    """
+    Excel sheet name rules:
+    - max 31 chars
+    - cannot contain: : \\ / ? * [ ]
+    - cannot be blank
+    """
+    name = re.sub(r"[:\\\\/?*\\[\\]]", "_", name).strip()
+    if not name:
+        name = "Sheet"
+    return name[:31]
+
+
+def export_tables_to_excel(
+    tables: list[pd.DataFrame],
+    output_path: str = None
+) -> str:
+    """
+    Exports each DataFrame to a separate sheet and adds an index sheet.
+    Returns the final output path.
+    """
+
+    if output_path is None:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = f"iscc_tables_{ts}.xlsx"
+
+    if not tables:
+        raise ValueError("No tables to export.")
+
+    index_rows = []
+    for i, df in enumerate(tables, start=1):
+        page = df["source_page"].iloc[0] if "source_page" in df.columns and len(df) else None
+        tix  = df["table_index"].iloc[0] if "table_index" in df.columns and len(df) else None
+        index_rows.append({
+            "sheet": None,  
+            "table_number": i,
+            "source_page": page,
+            "table_index": tix,
+            "rows": len(df),
+            "cols": len(df.columns)
+        })
+    index_df = pd.DataFrame(index_rows)
+
+    with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+        used_names = set()
+
+        for i, df in enumerate(tables, start=1):
+            page = df["source_page"].iloc[0] if "source_page" in df.columns and len(df) else "NA"
+            tix  = df["table_index"].iloc[0] if "table_index" in df.columns and len(df) else "NA"
+
+            base_name = _sanitize_sheet_name(f"p{page}_t{tix}")
+            sheet_name = base_name
+
+            suffix = 1
+            while sheet_name in used_names:
+                trimmed = base_name[:(31 - len(f"_{suffix}"))]
+                sheet_name = f"{trimmed}_{suffix}"
+                suffix += 1
+
+            used_names.add(sheet_name)
+
+            index_df.loc[index_df["table_number"] == i, "sheet"] = sheet_name
+
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+        index_df.to_excel(writer, sheet_name="index", index=False)
+
+    return output_path
+
+
+pdf_url = "https://hub.iscc-system.org/FileHandler/download/certificateFile/ODYyMjBfRVUtSVNDQy1DZXJ0LURFMTAwLTAxMzAwMTI1"
+tables = extract_tables_from_iscc_pdf(pdf_url)
+
+print(f"Extracted {len(tables)} tables")
+
+out_file = export_tables_to_excel(tables)
+print(f"Exported to: {out_file}")
+
+if tables:
+    print(tables[0].head())
