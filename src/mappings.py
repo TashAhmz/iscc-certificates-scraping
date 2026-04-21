@@ -1,90 +1,80 @@
 # Create a dictionary that maps each Scope* abbreviation to a broader facility category
 FACILITY_GROUPING_MAP = {
-    
+
     # Non-liquid biofuels assets
-    "BG": "Non-liquid Biofuels Assets",
-    "BM": "Non-liquid Biofuels Assets",
-    "LNGT": "Non-liquid Biofuels Assets",
-    "LP": "Non-liquid Biofuels Assets",
+    "Biogas plant": "Non-liquid Biofuels Assets",
+    "Biomethane plant": "Non-liquid Biofuels Assets",
+    "LNG terminal": "Non-liquid Biofuels Assets",
+    "Liquefaction Plant": "Non-liquid Biofuels Assets",
     # Add here
 
     # LCF Trading liquid biofuels assets
-    "BP": "LCF Trading Liquid Biofuels Assets",
-    "CPP": "LCF Trading Liquid Biofuels Assets",
-    "EP": "LCF Trading Liquid Biofuels Assets",
-    "ET": "LCF Trading Liquid Biofuels Assets",
-    "MT": "LCF Trading Liquid Biofuels Assets",
-    "HEFA": "LCF Trading Liquid Biofuels Assets",
-    "HVO": "LCF Trading Liquid Biofuels Assets",
+    "Biodiesel plant": "LCF Trading Liquid Biofuels Assets",
+    "Co-Processing plant": "LCF Trading Liquid Biofuels Assets",
+    "Ethanol plant": "LCF Trading Liquid Biofuels Assets",
+    "ETBE plant": "LCF Trading Liquid Biofuels Assets",
+    "MTBE plant": "LCF Trading Liquid Biofuels Assets",
+    "HEFA plant": "LCF Trading Liquid Biofuels Assets",
+    "HVO plant": "LCF Trading Liquid Biofuels Assets",
     # Add here
 
     # Feedstock for Biofuels Companies
-    "COF": "Feedstock for Biofuels Companies", 
-    "COP": "Feedstock for Biofuels Companies",
-    "CP": "Feedstock for Biofuels Companies",
-    "FA": "Feedstock for Biofuels Companies",
-    "FG": "Feedstock for Biofuels Companies",
-    "FP": "Feedstock for Biofuels Companies",
-    "ISHC": "Feedstock for Biofuels Companies",
-    "MP": "Feedstock for Biofuels Companies",
-    "OM": "Feedstock for Biofuels Companies",
-    "OT": "Feedstock for Biofuels Companies",
-    "PM": "Feedstock for Biofuels Companies",
-    "PO": "Feedstock for Biofuels Companies",
-    "PU": "Feedstock for Biofuels Companies",
-    "PYP": "Feedstock for Biofuels Companies",
-    "SM": "Feedstock for Biofuels Companies",
-    "TW": "Feedstock for Biofuels Companies",
+    "Central Office (Group of farms/plantations)": "Feedstock for Biofuels Companies",
+    "Central Office (Group of Points of Origin)": "Feedstock for Biofuels Companies",
+    "Collecting Point (for waste/residue material not grown/harvested on farms/plantations)": "Feedstock for Biofuels Companies",
+    "Farm/Plantation": "Feedstock for Biofuels Companies",
+    "First Gathering Point (for biomass grown/harvested on farms/plantations)": "Feedstock for Biofuels Companies",
+    "Food processing plant": "Feedstock for Biofuels Companies",
+    "Central Office for Independent Smallholders": "Feedstock for Biofuels Companies",
+    "Melting plant": "Feedstock for Biofuels Companies",
+    "Oil mill": "Feedstock for Biofuels Companies",
+    "Other conversion unit": "Feedstock for Biofuels Companies",
+    "Pulp mill": "Feedstock for Biofuels Companies",
+    "Point of Origin": "Feedstock for Biofuels Companies",
+    "Processing Unit": "Feedstock for Biofuels Companies",
+    "Pyrolysis plant": "Feedstock for Biofuels Companies",
+    "Sugar mill": "Feedstock for Biofuels Companies",
+    "Treatment plant for waste/residues": "Feedstock for Biofuels Companies",
     # Add here
-    
+
     # Other Processing Plants/Units
-    "COMP": "Other Processing Plants/Units",
-    "CV": "Other Processing Plants/Units",
-    "ML": "Other Processing Plants/Units",
-    "MRP": "Other Processing Plants/Units",
-    "PP": "Other Processing Plants/Units",
-    "RE": "Other Processing Plants/Units",
-    "SC": "Other Processing Plants/Units",
-    "CR": "Other Processing Plants/Units",
-    "FPR": "Other Processing Plants/Units",
-    "FSA": "Other Processing Plants/Units",
-    "WH": "Other Processing Plants/Units",
+    "Compounding plant": "Other Processing Plants/Units",
+    "Converter": "Other Processing Plants/Units",
+    "Methanol plant": "Other Processing Plants/Units",
+    "Mechanical Recycling Plant": "Other Processing Plants/Units",
+    "Polymerization plant": "Other Processing Plants/Units",
+    "Refinery": "Other Processing Plants/Units",
+    "Cracker": "Other Processing Plants/Units",
+    "Crushing plant": "Other Processing Plants/Units",
+    "Final Product Refinement": "Other Processing Plants/Units",
+    "Forest sourcing area": "Other Processing Plants/Units",
+    "Warehouse": "Other Processing Plants/Units",
     # Add here
 
     # Transport & Logistics Companies
-    "LC": "Transport & Logistics Companies",
-    "TC": "Transport & Logistics Companies",
+    "Logistic Center": "Transport & Logistics Companies",
+    "Transport Company": "Transport & Logistics Companies",
     # Add here
-    
+
     # Electricity Assets
-    "IPEL": "Electricity Assets",
-    "IPES": "Electricity Assets",
-    "IPER": "Electricity Assets",
-    "IPEM": "Electricity Assets",
+    "Installation producing energy (electricity, heating or cooling) from bioliquids": "Electricity Assets",
+    "Installation producing energy (electricity, heating or cooling) from solid biomass": "Electricity Assets",
+    "Installation producing energy (electricity, heating or cooling) from raw biogas": "Electricity Assets",
+    "Installation producing energy (electricity, heating or cooling) from biomethane": "Electricity Assets",
     # Add here
-    
+
     # Chemicals Assets
-    "PWP": "Chemicals Assets",
-    "SCP": "Chemicals Assets",
+    "Plastic Waste Processor": "Chemicals Assets",
+    "Speciality Chemical Plant": "Chemicals Assets",
     # Add here
-    
+
     # Trading Companies
-    "PoC-TR": "Trading Companies",
-    "TR": "Trading Companies",
-    "TRS": "Trading Companies"
+    "Proof of Compliance Trader": "Trading Companies",
+    "Trader": "Trading Companies",
+    "Trader with storage": "Trading Companies"
     # Add here
 }
 
-CERTIFICATE_TYPE_MAP = {
-    "ISCC EU": "Mandated",
-    "ISCC PLUS": "Voluntary",
-    "ISCC JAPAN": "Japan FIT",
-    "ISCC CORSIA": "Aviation",
-    "ISCC CFC": "Carbon Footprint Certification",
-    "DE B BLE BM": "Legacy"
-}
-
-# Manual corrections for country names that are incomplete or inconsistent
 MANUAL_COUNTRY_OVERRIDES = {
     "Republic Of": "South Korea",
     "Republic of": "South Korea", 
@@ -107,8 +97,17 @@ MANUAL_COUNTRY_OVERRIDES = {
     "Hong Kong": "China"
 }
 
+CERTIFICATE_TYPE_MAP = {
+    "ISCC EU": "Mandated",
+    "ISCC PLUS": "Voluntary",
+    "ISCC JAPAN": "Japan FIT",
+    "ISCC CORSIA": "Aviation",
+    "ISCC CFC": "Carbon Footprint Certification",
+    "DE B BLE BM": "Legacy"
+}
+
+
 COLUMN_MAP = {
-    "cert_status": "Status_Code",
     "cert_number": "Certificate_ID",
     "cert_owner": "Certificate_Holder",
     "cert_scope": "Scope",
@@ -122,74 +121,10 @@ COLUMN_MAP = {
     "cert_issuer": "Issuing_CB",
     "cert_map": "Map",
     "cert_file": "Certificate",
-    "cert_audit": "Audit_Report"
+    "cert_audit": "Audit_Report",
+    "cert_status": "Status"
 }
 
-STATUS_MAP = {
-    1: "Valid",
-    5: "Expired",
-    10: "Expired",
-    12: "Terminated",
-    13: "Withdrawn",
-    15: "Suspended",
-    20: "Expired",
-    21: "Expired"
-}
-
-SCOPE_DESCRIPTIONS = {
-    "BFO": "Biomarine fuel operator",
-    "BG": "Biogas plant",
-    "BM": "Biomethane plant",
-    "BP": "Biodiesel plant",
-    "COF": "Central Office (Group of farms/plantations)",
-    "COMP": "Compounding plant",
-    "COP": "Central Office (Group of Points of Origin)",
-    "CP": "Collecting Point (for waste/residue material not grown/harvested on farms/plantations)",
-    "CPP": "Co-Processing plant",
-    "CR": "Crushing plant",
-    "CV": "Converter",
-    "EL": "Electrolyser",
-    "EP": "Ethanol plant",
-    "ET": "ETBE plant",
-    "FA": "Farm/Plantation",
-    "FG": "First Gathering Point (for biomass grown/harvested on farms/plantations)",
-    "FP": "Food processing plant",
-    "FPR": "Final Product Refinement",
-    "FSA": "Forest sourcing area",
-    "HEFA": "HEFA plant",
-    "HVO": "HVO plant",
-    "ISHC": "Central Office for Independent Smallholders",
-    "IPEL": "Installation producing energy (electricity, heating or cooling) from bioliquids",
-    "IPES": "Installation producing energy (electricity, heating or cooling) from solid biomass",
-    "IPER": "Installation producing energy (electricity, heating or cooling) from raw biogas",
-    "IPEM": "Installation producing energy (electricity, heating or cooling) from biomethane",
-    "LC": "Logistic Center",
-    "LNGT": "LNG terminal",
-    "LP": "Liquefaction Plant",
-    "ML": "Methanol plant",
-    "MP": "Melting plant",
-    "MRP": "Mechanical Recycling Plant",
-    "MT": "MTBE plant",
-    "OM": "Oil mill",
-    "OT": "Other conversion unit",
-    "PM": "Pulp mill",
-    "PO": "Point of Origin",
-    "PoC-TR": "Proof of Compliance Trader",
-    "PP": "Polymerization plant",
-    "PU": "Processing Unit",
-    "PWP": "Plastic Waste Processor",
-    "PYP": "Pyrolysis plant",
-    "RE": "Refinery",
-    "SC": "Cracker",
-    "SCP": "Speciality Chemical Plant",
-    "SM": "Sugar mill",
-    "TC": "Transport Company",
-    "TR": "Trader",
-    "TRS": "Trader with storage",
-    "TW": "Treatment plant for waste/residues",
-    "WH": "Warehouse",
-    "WR36": "acc. to 36th BImSchV (double counting of biofuels in Germany)"
-}
 
 LEGAL_SUFFIXES = {
     "bv","sa","gmbh","llc","ltd","ltda","co","company","ag","oy","kft",
@@ -450,3 +385,4 @@ ALL_COUNTRIES = {
     "Zimbabwe": "ZW"
 }
 
+#  <h3 class=\"h4\"><span data-tooltip aria-haspopup=\"1\" class=\"has-tip top\"

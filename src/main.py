@@ -5,8 +5,8 @@ import json
 from compare import create_certs_added, create_certs_removed, create_certs_changed
 
 # Scrape configuration
-DELAY = 5
-ROWS_LOADED = 20000
+DELAY = 0.01
+ROWS_LOADED = 200
 
 now = datetime.now()
 timestamp = now.strftime("%d.%m.%Y_%H.%M")
@@ -17,6 +17,7 @@ output_file = f"out/{filename}"
 if __name__ == "__main__":
     scrape_all(delay=DELAY, page_size=ROWS_LOADED, output_file=output_file)
     apply_styles(output_file, "Certificate Database")
+
 """
     try: 
         with open("src/utils.json", "r") as f1: 
@@ -44,3 +45,8 @@ if __name__ == "__main__":
     except json.JSONDecodeError:
         print(f"{f2.name} is empty")
 """
+# total 88042
+# total valid 15839
+# total terminated 660
+# sum of valid, suspened and withdrawn = 16487
+# total expired 70880

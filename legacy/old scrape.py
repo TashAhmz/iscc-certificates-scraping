@@ -1,3 +1,8 @@
+#This is the old scrape file before ISCC changed their website  and broke the old logic.
+
+
+
+
 import requests
 from bs4 import BeautifulSoup
 import time
@@ -6,8 +11,8 @@ import re
 from mappings import *
 from thefuzz import fuzz, process
 import numpy as np
-import geonamescache
-
+from collections import defaultdict
+import unicodedata
 
 # URLs
 BASE_URL = "https://www.iscc-system.org/wp-admin/admin-ajax.php?action=get_wdtable&table_id=2"
@@ -19,10 +24,9 @@ GST_GEO = pd.read_excel("C:/Users/tashif.ahmed/OneDrive - Shell/T&S LCF - Analyt
 # GSTs of Assets filepath
 GST_ASSETS = pd.read_excel(r"C:/Users/tashif.ahmed/OneDrive - Shell/T&S LCF - Analytics, Digital, and Economics - Shared Documents/00. LCF Data Lakehouse/GSTs/GST Assets/00. Golden Source File of Asset Capacities.xlsm", sheet_name="GoldenSource")
 
-# Load city database
-gc = geonamescache.GeonamesCache(min_city_population=500)
-cities = gc.get_cities()
-CITY_NAMES = [c["name"] for c in cities.values()]
+countries = set(c.lower() for c in ALL_COUNTRIES)
+stopwords = set(s.lower() for s in STOPWORDS)   
+city_stopwords = set(s.lower() for s in CITY_STOPWORDS)
 
 # Headers
 HEADERS = {
@@ -37,6 +41,14 @@ COLUMNS = [
     "cert_issuer","cert_map","cert_file","cert_audit","cert_status"
 ]
 
+
+def _strip_accents(s: str) -> str:
+    s = "" if s is None else str(s)
+    return "".join(
+        ch for ch in unicodedata.normalize("NFKD", s)
+        if not unicodedata.combining(ch)
+    )
+
 def _safe(text):
     return "" if text is None else str(text).strip()
 
@@ -46,179 +58,315 @@ def _asset_identifier_join(company_name, city):
     return f"{company} {city}".strip()
 
 def _normalize_for_match(s: str) -> str:
-    if not isinstance(s, str):
-        s = "" if s is None else str(s)
-    s = s.lower()
-    s = re.sub(r"[\\.,;:/\\-\\(\\)\\[\\]&]", " ", s)  # remove punctuation
-    s = re.sub(r"\\s+", " ", s).strip()               # collapse spaces
+    s = _safe(s).lower()
+
+    # accents: "mède" -> "mede"
+    s = _strip_accents(s)
+
+    # html ampersand
+    s = s.replace("&amp;", " and ").replace("&", " and ")
+
+    # punctuation including dash -> space
+    s = re.sub(r"[.,;:/\-\(\)\[\]]", " ", s)
+
+    # collapse spaces
+    s = re.sub(r"\s+", " ", s).strip()
     return s
 
 def add_asset_identifier_and_match(
     df_iscc: pd.DataFrame,
-    gst_df: pd.DataFrame,
-    fuzzy_threshold: int = 85
+    gst_df: pd.DataFrame
 ) -> pd.DataFrame:
-    """
-    Creates/updates:
-    - Asset_Identifier: starts as 'Company_Name City' (no comma). If a match is found
-      in GST, it is overwritten with the matched GST 'Asset Identifier'.
-    - Match_Found: 1 if exact normalized match OR (keyword match: any company token AND any city token
-      are both present in a GST identifier) OR fuzzy partial match >= threshold; else 0.
 
-    New behavior:
-    Before the fuzzy fallback, attempt a fast **keyword inclusion** match:
-      • Split Company_Name and City into normalized tokens (min length 3).
-      • If there exists a GST 'Asset Identifier' that contains at least one token from the company
-        AND at least one token from the city, accept that as a match immediately.
-    """
-    # 1) Build initial ISCC Asset_Identifier
-    if "Company_Name" not in df_iscc.columns or "City" not in df_iscc.columns:
-        raise KeyError("Expected columns 'Company_Name' and 'City' not found in ISCC DataFrame.")
-    df_iscc["Asset_Identifier"] = [
+    # --- Column checks ---
+    required_iscc = {"Company_Name", "City", "Country"}
+    missing_iscc = required_iscc - set(df_iscc.columns)
+    if missing_iscc:
+        raise KeyError(f"Missing ISCC columns: {missing_iscc}")
+
+    GST_ID_COL = "Asset Identifier"
+    GST_COUNTRY_COL = "Country"
+    GST_TERR_COL = "Territory"
+
+    required_gst = {GST_ID_COL, GST_COUNTRY_COL, GST_TERR_COL}
+    missing_gst = required_gst - set(gst_df.columns)
+    if missing_gst:
+        raise KeyError(f"Missing GST columns: {missing_gst}")
+
+    df_iscc = df_iscc.copy()
+
+    # --- 1) Build ISCC Company_City ---
+    df_iscc["Company_City"] = [
         _asset_identifier_join(cn, city)
         for cn, city in zip(df_iscc["Company_Name"], df_iscc["City"])
     ]
 
-    # 2) Prepare GST lists and mappings
-    GST_ASSET_ID_COL = "Asset Identifier"
-    if GST_ASSET_ID_COL not in gst_df.columns:
-        raise KeyError(f"Column '{GST_ASSET_ID_COL}' not found in GST assets DataFrame.")
-    gst_raw_list = gst_df[GST_ASSET_ID_COL].astype(str).tolist()
+    # --- 2) Tokenization helper ---
+    def _tokens(s: str) -> set:
+        """
+        Tokenization for matching:
+        - keeps len>=2 tokens (bp, sk, etc.)
+        - drops pure numeric tokens
+        - collapses dotted abbreviations: 'b.v.' -> 'bv', 's.a.' -> 'sa'
+        - drops legal suffixes + stopwords
+        """
+        s = _normalize_for_match(s)
+
+        # collapse dotted abbreviations: a.s. -> as, s.r.o. -> sro, etc.
+        s = re.sub(r"\b(?:[a-z]\.){2,}", lambda m: m.group(0).replace(".", ""), s)
+
+        raw = s.split()
+        out = set()
+        for t in raw:
+            t = t.strip()
+            if not t:
+                continue
+            if len(t) < 2:
+                continue
+            if t.isdigit():
+                continue
+            if t in LEGAL_SUFFIXES:
+                continue
+            if t in stopwords:
+                continue
+            if t in countries:
+                continue
+            out.add(t)
+        return out
+
+    def _disjoint_tokens(comp_tokens: set, city_tokens: set):
+        overlap = comp_tokens & city_tokens
+        if overlap:
+            comp_tokens = comp_tokens - overlap
+            city_tokens = city_tokens - overlap
+        return comp_tokens, city_tokens
+
+    def _middle_from_cert_holder(cert_holder: str) -> str:
+        """
+        "Neste Components B.V, Botlek, Rotterdam, Netherlands" -> "Botlek Rotterdam"
+        Returns "" if not parseable.
+        """
+        if not cert_holder:
+            return ""
+        parts = [p.strip() for p in str(cert_holder).split(",") if p.strip()]
+        if len(parts) < 3:
+            return ""
+        return " ".join(parts[1:-1]).strip()
+
+    # --- 3) Prepare GST lists (raw + normalized for exact match) ---
+    gst_raw_series = gst_df[GST_ID_COL].fillna("").astype(str).str.strip()
+    gst_country_series = gst_df[GST_COUNTRY_COL].fillna("").astype(str).str.strip()
+    gst_terr_series = gst_df[GST_TERR_COL].fillna("").astype(str).str.strip()
+
+    # Keep only rows with a non-empty Asset Identifier
+    keep_mask = gst_raw_series.ne("")
+    gst_raw_list = gst_raw_series[keep_mask].tolist()
+    gst_country_list = gst_country_series[keep_mask].map(_normalize_for_match).tolist()
+    gst_terr_list = gst_terr_series[keep_mask].tolist()
+
+    # Exact match prep
     gst_norm_list = [_normalize_for_match(x) for x in gst_raw_list]
     gst_norm_set = set(gst_norm_list)
-    # Map normalized GST asset identifier -> original GST string (to overwrite with the *real* value)
-    norm_to_raw = {n: r for n, r in zip(gst_norm_list, gst_raw_list)}
-  
-    LEGAL_SUFFIXES = {
-        "bv","b.v.","b.v","sa","s.a.","gmbh","llc","ltd","ltda","co","company","ag","oy","kft",
-        "sp","z.o.o","zoo","bv.","inc","corp","sro","s.r.o"
-    }
 
-    def _clean_legal_suffixes(s: str):
-        s = s.lower()
-        parts = re.split(r"[ ,.-]+", s)
-        filtered = [p for p in parts if p not in LEGAL_SUFFIXES and len(p) > 0]
-        return " ".join(filtered)
+    # norm -> raw (first one wins if duplicates)
+    norm_to_raw = {}
+    for n, r in zip(gst_norm_list, gst_raw_list):
+        norm_to_raw.setdefault(n, r)
 
-    # --- Precompute token sets for each GST identifier for keyword inclusion stage ---
-    def _tokens(s: str):
-        s = _normalize_for_match(s)
-        s = _clean_legal_suffixes(s)
-        toks = [t for t in s.split() if len(t) >= 3]
-        return set(toks)
+    # --- 4) Build GST token sets INCLUDING Territory tokens ---
+    gst_token_sets = []
+    for asset_id, terr in zip(gst_raw_list, gst_terr_list):
+        toks = _tokens(asset_id)
 
-    gst_token_sets = [_tokens(x) for x in gst_raw_list]
+        # ✅ add territory tokens
+        if terr:
+            toks |= _tokens(terr)
 
+        gst_token_sets.append(toks)
+
+    # --- 5) Build inverted index for fast candidate retrieval ---
+    token_to_gst_idxs = defaultdict(set)
+    for i, toks in enumerate(gst_token_sets):
+        for tok in toks:
+            token_to_gst_idxs[tok].add(i)
+
+    # --- 6) Country gating index ---
+    country_to_idxs = defaultdict(list)
+    for i, c in enumerate(gst_country_list):
+        if c:
+            country_to_idxs[c].append(i)
+
+    # --- 7) Main loop ---
     match_flags = []
     overwritten_asset_ids = []
 
-    # 3) For each ISCC asset, try exact normalized match, then keyword inclusion, then fuzzy
-    for company_name, city_name, asset_id in zip(df_iscc["Company_Name"], df_iscc["City"], df_iscc["Asset_Identifier"]):
-        original_display = asset_id  # keep ISCC-composed value as fallback
+    for row in df_iscc.itertuples(index=False):
+        company_name = getattr(row, "Company_Name", None)
+        city_name = getattr(row, "City", None)
+        iscc_country = getattr(row, "Country", None)
+        cert_holder = getattr(row, "Certificate_Holder", None)
+
+        asset_id = getattr(row, "Company_City", "")
+        original_display = asset_id
         norm = _normalize_for_match(asset_id)
 
-        # Guard: if query is empty after normalization, mark no match
-        if norm == "":
+        # Empty
+        if not norm:
             match_flags.append(0)
             overwritten_asset_ids.append(original_display)
             continue
 
-        # --- Exact normalized match ---
+        # Exact match
         if norm in gst_norm_set:
             match_flags.append(1)
-            overwritten_asset_ids.append(norm_to_raw[norm])  # overwrite with GST exact string
+            overwritten_asset_ids.append(norm_to_raw[norm])
             continue
 
-        # --- Keyword inclusion stage (company+city tokens must both be present) ---
-        # Build token sets from Company_Name and City
-        def _safe_str(x):
-            return "" if x is None else str(x)
-        comp_tokens = _tokens(_safe_str(company_name))
-        city_tokens = _tokens(_safe_str(city_name))
+        # --- Build ISCC tokens ---
+        comp_tokens = _tokens(company_name)
 
-        # Only attempt if we have at least one token from both
-        keyword_matched_index = None
-        if comp_tokens and city_tokens:
-            best_idx = -1
-            best_score = -1
-            for i, gst_toks in enumerate(gst_token_sets):
-                comp_hit = len(comp_tokens & gst_toks)
-                city_hit = len(city_tokens & gst_toks)
-                if comp_hit > 0 and city_hit > 0:
-                    # Score by total hits to pick the most specific candidate
-                    score = comp_hit + city_hit
-                    if score > best_score:
-                        best_score = score
-                        best_idx = i
-            if best_idx >= 0:
-                keyword_matched_index = best_idx
+        # City reference: prefer middle of Certificate_Holder, else fallback to row.City
+        mid_city = _safe(city_name)  # ✅ always defined
+        holder_mid = _middle_from_cert_holder(_safe(cert_holder))
+        if holder_mid:
+            mid_city = holder_mid
 
-        if keyword_matched_index is not None:
-            # Instant accept based on keyword evidence
-            best_match = gst_raw_list[keyword_matched_index]
-            match_flags.append(1)
-            overwritten_asset_ids.append(best_match)
+        city_tokens = _tokens(mid_city)
+
+        # enforce disjointness
+        comp_tokens, city_tokens = _disjoint_tokens(comp_tokens, city_tokens)
+
+        # ✅ NO city-only matches: require some company tokens to proceed
+        if not comp_tokens:
+            match_flags.append(0)
+            overwritten_asset_ids.append(original_display)
             continue
 
-        # --- Fuzzy fallback (handles Phase/Train/Unit suffixes etc.) ---
-        # We compare against raw GST strings so we can overwrite with the real GST display value
-        best_match, best_score = process.extractOne(
-            original_display,
-            gst_raw_list,
-            scorer=fuzz.token_set_ratio
-        )
-        if best_score >= fuzzy_threshold and isinstance(best_match, str):
+        # --- Country gating ---
+        iscc_country_norm = _normalize_for_match(iscc_country)
+
+        if iscc_country_norm and iscc_country_norm in country_to_idxs:
+            gated_idxs = set(country_to_idxs[iscc_country_norm])
+        else:
+            gated_idxs = None  # means "no gate"
+
+        # --- Candidate selection using inverted index (fast) ---
+        candidate_idxs = set()
+        for t in comp_tokens:
+            candidate_idxs |= token_to_gst_idxs.get(t, set())
+
+        # optional: city tokens help ranking (but not allowed to match alone)
+        for t in city_tokens:
+            candidate_idxs |= token_to_gst_idxs.get(t, set())
+
+        # apply country gate if available
+        if gated_idxs is not None:
+            candidate_idxs &= gated_idxs
+
+        best_idx = None
+        best_score = -1
+
+        for i in candidate_idxs:
+            gst_toks = gst_token_sets[i]
+            comp_hit = len(comp_tokens & gst_toks)
+            city_hit = len(city_tokens & gst_toks) if city_tokens else 0
+
+            # ✅ Acceptance rules (no city-only):
+            combined_ok = (comp_hit >= 1 and city_hit >= 1)     # company + city
+            company_only_ok = (comp_hit >= 2 and city_hit == 0) # only company allowed if strong
+
+            # If there was NO country gate, tighten company-only to reduce false positives
+            if gated_idxs is None:
+                company_only_ok = False
+
+            if combined_ok or company_only_ok:
+                # scoring: prefer combined matches
+                score = (100 + comp_hit + city_hit) if combined_ok else (comp_hit + city_hit)
+
+                if score > best_score:
+                    best_score = score
+                    best_idx = i
+
+        if best_idx is not None:
             match_flags.append(1)
-            overwritten_asset_ids.append(best_match)  # overwrite with the GST best match
+            overwritten_asset_ids.append(gst_raw_list[best_idx])
         else:
             match_flags.append(0)
-            overwritten_asset_ids.append(original_display)  # keep original
+            overwritten_asset_ids.append(original_display)
 
-    # 4) Overwrite Asset_Identifier with the chosen value and set Match_Found
-    df_iscc["Asset_Identifier"] = overwritten_asset_ids
+    df_iscc["Company_City"] = overwritten_asset_ids
     df_iscc["Match_Found"] = match_flags
     return df_iscc
 
+
+import re
+
+
 def _normalize(text: str) -> str:
-    """Light normalization to improve fuzzy company matches."""
+    """Light normalization + stopword removal to improve fuzzy company matches."""
     if not isinstance(text, str):
         return ""
+
     text = text.lower()
+
     removals = [
-        " inc", " llc", " l.l.c", " lp", " l.p.", " bv", " b.v.", " ltd", " co", " company",
-        " limited", ".", ",", "&", "ltd.", "pte.", "gmbh", "ag", "plc", "s.p.a"
+        " inc", " llc", " l.l.c", " lp", " l.p.", " bv", " b.v.", " ltd",
+        " co", "co.", " company", " limited",
+        ".", ",", "&", "&amp;", "&amp;amp;",
+        "ltd.", "pte.", "gmbh", " plc", " s.p.a"
     ]
-    # pad with space to avoid partial token issues (e.g., 'lp' in 'help')
+
     for w in removals:
         text = text.replace(w, " ")
-    return " ".join(text.split())
 
-def _build_lookup_exact_columns(gst_df: pd.DataFrame):
-    """
-    Build the fuzzy universe and a map of normalized name -> 'Company/Producer Short Name'
-    using the exact columns from your GST of Assets file.
-    """
-    # Use exact headers as shown in your screenshot
+    # ✅ remove legal suffixes as whole tokens only (prevents 'cargo' being mangled by 'ag')
+    if LEGAL_SUFFIXES:
+        pattern = r"\b(?:%s)\b" % "|".join(map(re.escape, LEGAL_SUFFIXES))
+        text = re.sub(pattern, " ", text)
+
+    # collapse whitespace
+    text = " ".join(text.split())
+
+    # ✅ remove stopwords at token level
+    if stopwords:
+        tokens = [t for t in text.split() if t not in stopwords]
+        text = " ".join(tokens)
+    if countries:
+        tokens = [t for t in text.split() if t not in countries]
+        text = " ".join(tokens)
+
+    return text
+
+
+def _build_lookup_exact_columns(gst_df: pd.DataFrame, stopwords: set[str]):
     CP_COL = "Company/Producer"
     CPSN_COL = "Company/Producer Short Name"
 
-    # Guard rails
     for col in (CP_COL, CPSN_COL):
         if col not in gst_df.columns:
             raise KeyError(f"Column '{col}' not found in GST assets DataFrame.")
 
     tmp = gst_df[[CP_COL, CPSN_COL]].copy()
+
     tmp["__norm_cp__"]   = tmp[CP_COL].apply(_normalize)
     tmp["__norm_cpsn__"] = tmp[CPSN_COL].apply(_normalize)
 
-    # Universe of strings to match against (both full and short)
-    universe = list(tmp["__norm_cp__"]) + list(tmp["__norm_cpsn__"])
+    # Universe: unique + non-empty
+    universe = pd.unique(pd.concat([tmp["__norm_cp__"], tmp["__norm_cpsn__"]], ignore_index=True)).tolist()
+    universe = [u for u in universe if isinstance(u, str) and u.strip()]
 
-    # Map normalized representation -> short name (original casing)
+    # Map normalized -> original short name (only if short name is not blank)
     to_short = {}
     for _, r in tmp.iterrows():
-        to_short[r["__norm_cp__"]]   = r[CPSN_COL]
-        to_short[r["__norm_cpsn__"]] = r[CPSN_COL]
+        short = r[CPSN_COL]
+        short = "" if pd.isna(short) else str(short).strip()
+        if not short:
+            continue
+
+        if r["__norm_cp__"]:
+            to_short[r["__norm_cp__"]] = short
+        if r["__norm_cpsn__"]:
+            to_short[r["__norm_cpsn__"]] = short
 
     return universe, to_short
 
@@ -226,71 +374,47 @@ def _build_lookup_exact_columns(gst_df: pd.DataFrame):
 def overwrite_company_with_gst_shortname_exact(
     iscc_df: pd.DataFrame,
     gst_df: pd.DataFrame,
-    score_threshold: int = 85
+    score_threshold
 ) -> pd.DataFrame:
-    """
-    Overwrites iscc_df['Company_Name'] with GST 'Company/Producer Short Name'
-    when fuzzy match >= score_threshold AND the GST short name is non-empty.
-    Otherwise, leaves the original value unchanged.
-
-    Guarantees: never replaces a non-empty Company_Name with a blank.
-    """
 
     if "Company_Name" not in iscc_df.columns:
         raise KeyError("Expected column 'Company_Name' not found in ISCC DataFrame.")
 
-    # Build lookup using your exact columns (as previously aligned)
-    # This function must return:
-    #   universe: List[str] of normalized GST names (producer + short)
-    #   to_short: Dict[normalized_name] -> short_name (original casing)
-    universe, to_short = _build_lookup_exact_columns(gst_df)
+    universe, to_short = _build_lookup_exact_columns(gst_df, STOPWORDS)
 
-    # Helper to coerce to safe string for "leave as-is"
     def _as_is(value):
-        # If original is NaN/None, return "" (or choose a placeholder if you prefer)
-        return "" if (value is None or (isinstance(value, float) and np.isnan(value))) else str(value)
+        return "" if pd.isna(value) else str(value)
 
-    # If the GST universe is empty, just return untouched
     if not universe:
-        # Still normalize dtype to string to avoid later Excel issues
         iscc_df["Company_Name"] = iscc_df["Company_Name"].astype(str)
         return iscc_df
 
     new_values = []
     for original in iscc_df["Company_Name"]:
         original_safe = _as_is(original)
-
-        # If original is empty, there's nothing sensible to overwrite with "as-is"
-        # but we still try to find a match; otherwise keep it empty.
         norm = _normalize(original_safe)
 
-        # If normalization yields empty string, we skip fuzzy and keep original
         if not norm.strip():
             new_values.append(original_safe)
             continue
 
         match, score = process.extractOne(norm, universe, scorer=fuzz.ratio) if universe else (None, 0)
 
-        # Only overwrite if:
-        #  1) We found a match
-        #  2) Score >= threshold
-        #  3) The mapped short name is a non-empty string
         if match and score >= score_threshold:
             candidate = to_short.get(match, "")
             candidate = candidate if isinstance(candidate, str) else _as_is(candidate)
             candidate = candidate.strip()
 
-            if candidate:  # ensure not blank
+            if candidate:
                 new_values.append(candidate)
             else:
-                # Leave as original if GST short name is empty or missing
                 new_values.append(original_safe)
         else:
-            # No acceptable match → leave as-is
             new_values.append(original_safe)
 
     iscc_df["Company_Name"] = new_values
     return iscc_df
+
 
 # Define a function to determine the facility grouping based on Scope* codes
     # It checks each abbreviation and returns the matching group(s)
@@ -305,35 +429,54 @@ def determine_facility_grouping(scope_text):
             groupings.add(group)
     return ", ".join(sorted(groupings)) if groupings else "Unclassified"
 
-
 def get_country_name(c):
     exempt_words = ["of", "the", "and"]
     return " ".join([w.capitalize() if w not in exempt_words else w.lower() for w in c.split()])
 
+# old city function now using one that Tom developed
+
+def every_word_has_digit(tok: str) -> bool:
+    words = tok.split()
+    return bool(words) and all(any(ch.isdigit() for ch in w) for w in words)
+
 def get_city_name(cert_owner):
+
+    if not isinstance(cert_owner, str) or not cert_owner.strip():
+            return None
 
     exempt_words = ["ltd.", "ltd", "s.i.u",
                     "s.a.", "s.a", "s.r.o.",
                     "s.r.o", "s.i.", "s.i",
                     "s.p.a", "s.p.a.", "s.l.u",
                     "s.l.u", "a.s", "a.s.",
-                    "s.l", "s.l.", "inc.",
-                    ". ltd", "-"]
+                    "s.l", "s.l.", "inc.", "inc",
+                    ". ltd", "-", "oils", "l.p.",
+                    "llc", "l.l.c.", "llc.", "lp",
+                    "inc..", "city", ".ltd.", "ltd .", "/", "-"]
     
-    if not isinstance(cert_owner, str) or not cert_owner.strip():
-            return None
+    parts = [p.strip().lower() for p in cert_owner.split(",") if p.strip()][1:-1]
 
-    tokens = [t.strip().lower() for t in cert_owner.split(",") if t.strip() and t.strip().lower() not in exempt_words][1:-1] # only including valid cities possibilties
+    tokens = [
+        tok
+        for tok in parts
+        if tok
+        and tok not in exempt_words
+        and not any(w in city_stopwords for w in tok.split())
+        and not every_word_has_digit(tok)
+    ]
+    
+    country = get_country_name(cert_owner.split(",")[-1].strip().lower() if parts else "").lower()
 
+    # testing to see if this logic works to remove street names coming into the city column by mistake
     if len(tokens) == 1:
-        return tokens[0].title()
-
-    for token in tokens:
-        if token not in exempt_words:
-            return token.title()
-
+        return " ".join([w for w in tokens[0].split() if not any(ch.isdigit() for ch in w)]).title()
+    elif len(tokens) >= 2:
+        if country in ("united states", "china", "republic of", "brazil", "indonesia", "australia", "japan", "canada"):
+            return " ".join([w for w in tokens[-2].split() if not any(ch.isdigit() for ch in w)]).title()
+        else:
+            return " ".join([w for w in tokens[-1].split() if not any(ch.isdigit() for ch in w)]).title()
+        
     return None
-
 
 def get_lat_lon(link):
     if not isinstance(link, str) or "maps?q=" not in link:
@@ -371,6 +514,8 @@ def map_certificate_type(cert_id):
         return "Aviation"
     elif id == "DE B":
         return "Legacy"
+    elif id == "EU ISCC":
+        return "Mandated"
     else:
         return CERTIFICATE_TYPE_MAP.get(id, "Undefined")
 
@@ -550,7 +695,7 @@ def scrape_all(output_file, page_size, delay):
     df.insert(scope_index, "Scope_Description", df["cert_scope"].apply(map_multiple_scopes))
 
     # Insert "Processing_Unit_Type_Description"
-    df.insert(scope_index + 2, "Processing_Unit_Type_Description", df["cert_scope"].apply(map_multiple_scopes))
+    df.insert(scope_index + 2, "Processing_Unit_Type_Description", df["cert_processingunittype"].apply(map_multiple_scopes))
 
     # Extract new cert_owner fields
     company_series, city_series, country_series = zip(*df["cert_owner"].apply(split_cert_owner))
@@ -589,9 +734,27 @@ def scrape_all(output_file, page_size, delay):
     # Normalise to remove whitespaces and invisible characters that could break further logic
     df = df.map(clean_excel_string)
 
-    df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=67)
+    df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=75)
 
-    df = add_asset_identifier_and_match(df, GST_ASSETS, fuzzy_threshold=80)
+    df = add_asset_identifier_and_match(df, GST_ASSETS)
+
+    # Add new column called Asset_Identifier for ones where match found, otherwise keep blank
+    df["Asset_Identifier"] = np.where(
+        df["Match_Found"] == 1,
+        df["Company_City"],
+        None
+    )
+
+    # extra cleaning
+    df = df.replace(r"^\s*nan\s*$", "", regex=True)
+    
+    exclude = {"Scope_Description", "Processing_Unit_Type_Description",
+                "Map", "Certificate", "Audit_Report", "Products", "Add-ons** /CTS"} 
+
+    text_cols = [c for c in df.select_dtypes(include="object").columns if c not in exclude]
+
+    df[text_cols] = df[text_cols].replace(r'[\\/\"\'„“»«]', "", regex=True)
+
 
     # Save and add styles
     df.to_excel(output_file, index=False, engine="openpyxl", sheet_name="Certificate Database")

@@ -8,10 +8,14 @@ from thefuzz import fuzz, process
 import numpy as np
 from collections import defaultdict
 import unicodedata
+import json
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # URLs
-BASE_URL = "https://www.iscc-system.org/wp-admin/admin-ajax.php?action=get_wdtable&table_id=2"
-MAIN_PAGE = "https://www.iscc-system.org/certification/certificate-database/all-certificates/"
+API_URL = "https://iscc-system.org/wp-json/api/certificates"
+LIST_PAGE = "https://iscc-system.org/certification/all-certificates/"
 
 # GSTs of Geo filepath
 GST_GEO = pd.read_excel("C:/Users/tashif.ahmed/OneDrive - Shell/T&S LCF - Analytics, Digital, and Economics - Shared Documents/00. LCF Data Lakehouse/GSTs/GST Geographies/LCF GST of Geographies.xlsx", sheet_name="GS_LCF_Geographies")
@@ -24,14 +28,24 @@ stopwords = set(s.lower() for s in STOPWORDS)
 city_stopwords = set(s.lower() for s in CITY_STOPWORDS)
 
 # Headers
-HEADERS = {
-    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-    "X-Requested-With": "XMLHttpRequest"
+
+DEFAULT_HEADERS = {
+    "Accept": "application/json, text/plain, */*",
+    "Content-Type": "application/json",
+    "Origin": "https://iscc-system.org",
+    "Referer": LIST_PAGE,
+    "User-Agent": "Mozilla/5.0",
 }
+
+STATUS_TYPES = ["valid", "suspended", "expired", "terminated", "withdrawn"]
+
+
+STATUS_PRIORITY = {s: i for i, s in enumerate(["withdrawn", "terminated", "suspended", "expired", "valid"])}
+
 
 # Column names (from table)
 COLUMNS = [
-    "cert_ikon","cert_number","cert_owner","cert_scope","cert_processingunittype","cert_in_put","cert_add_on",
+    "cert_number","cert_owner","cert_scope","cert_processingunittype","cert_in_put","cert_add_on",
     "cert_products","cert_valid_from","cert_valid_until","cert_suspended_date",
     "cert_issuer","cert_map","cert_file","cert_audit","cert_status"
 ]
@@ -294,9 +308,6 @@ def add_asset_identifier_and_match(
     return df_iscc
 
 
-import re
-
-
 def _normalize(text: str) -> str:
     """Light normalization + stopword removal to improve fuzzy company matches."""
     if not isinstance(text, str):
@@ -474,11 +485,11 @@ def get_city_name(cert_owner):
     return None
 
 def get_lat_lon(link):
-    if not isinstance(link, str) or "maps?q=" not in link:
+    if not isinstance(link, str) or "maps/place" not in link:
         return None, None
-    coords = link.split("maps?q=")[-1].split(",")
+    coords = link.split("maps/place")[-1].split("+")
     # Filter out empty strings
-    coords = [c.strip() for c in coords if c.strip()]
+    coords = [c.strip() for c in coords if c.strip() and c.strip() != "0.000000"]
     if len(coords) >= 2:
         return coords[0], coords[1]
     else:
@@ -492,12 +503,6 @@ def get_longitude(link):
     lat, lon = get_lat_lon(link)
     return lon if lon else "Unknown"
 
-def map_status(code):
-    try:
-        code = int(code)
-    except (ValueError, TypeError):
-        return ""
-    return STATUS_MAP.get(code, "Unknown")
 
 def map_certificate_type(cert_id):
     try:
@@ -560,74 +565,196 @@ def clean_excel_string(x):
     s = re.sub(r"\s+", " ", s)
     return s
 
-def get_fresh_nonce():
-    """Fetch the main page and extract the current wdtNonce"""
-    response = requests.get(MAIN_PAGE, verify=False)
-    response.raise_for_status()
+####################################################################
+# Scraping Logic
+####################################################################
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    input_tag = soup.find("input", {"id": "wdtNonceFrontendEdit_2"})
-    if input_tag and input_tag.has_attr("value"):
-        return input_tag["value"]
-    else:
-        raise ValueError("Could not find wdtNonce on the page")
+def _try_extract_nonce_from_html(html: str) -> str | None:
+    # Common WordPress pattern: a JS object with "nonce":"..."
+    m = re.search(r'"nonce"\s*:\s*"([^"]+)"', html)
+    if m:
+        return m.group(1).strip()
 
-def fetch_page(start: int, length: int = 10000, nonce: str = None):
-    """Fetch a page of certificates from the server"""
-    if nonce is None:
-        nonce = get_fresh_nonce()
+    soup = BeautifulSoup(html, "html.parser")
+    meta = soup.find("meta", attrs={"name": re.compile(r"x-wp-nonce", re.I)})
+    if meta and meta.get("content"):
+        return meta["content"].strip()
 
-    form_data = {
-        "draw": "5",
-        "order[0][column]": "4",
-        "order[0][dir]": "desc",
-        "start": str(start),
-        "length": str(length),
-        "search[value]": "",
-        "search[regex]": "false",
-        "wdtNonce": nonce,
-        "sRangeSeparator": "|"
+    return None
+
+def bootstrap_session() -> tuple[requests.Session, str | None]:
+    """
+    Creates a session and visits the list page first (cookies).
+    Returns (session, nonce_if_found).
+    The REST API nonce is usually sent via X-WP-Nonce header. [2](https://developer.wordpress.org/rest-api/using-the-rest-api/authentication/)
+    """
+    s = requests.Session()
+    r = s.get(LIST_PAGE, headers={"User-Agent": DEFAULT_HEADERS["User-Agent"]}, timeout=60, verify=False)
+    r.raise_for_status()
+
+    nonce = r.headers.get("X-WP-Nonce") or r.headers.get("x-wp-nonce")
+    if nonce:
+        return s, nonce.strip()
+
+    nonce = _try_extract_nonce_from_html(r.text)
+    return s, nonce
+
+def fetch_certificates_page(
+    session: requests.Session,
+    page: int,
+    count: int = 100,
+    search: str = "",
+    valid_from: str = "",
+    valid_until: str = "",
+    nonce: str | None = None,
+    status_filter: str | None = None,
+) -> tuple[str, int, int]:
+    """
+    Returns (html, totalCount, maxPages)
+    """
+    payload = {
+        "valid_from": valid_from,
+        "valid_until": valid_until,
+        "search": search,
+        "count": str(count),
+        "page": int(page),
     }
 
-    # Add columns for server-side processing
-    for i, name in enumerate(COLUMNS):
-        form_data[f"columns[{i}][data]"] = str(i)
-        form_data[f"columns[{i}][name]"] = name
-        form_data[f"columns[{i}][searchable]"] = "true"
-        form_data[f"columns[{i}][orderable]"] = "true"
-        form_data[f"columns[{i}][search][value]"] = ""
-        form_data[f"columns[{i}][search][regex]"] = "false"
+    # Add status filter when provided
+    if status_filter:
+        payload["filters"] = {"status": [status_filter]}
 
-    response = requests.post(BASE_URL, headers=HEADERS, data=form_data, verify=False)
-    response.raise_for_status()
+    headers = dict(DEFAULT_HEADERS)
+    if nonce:
+        headers["X-WP-Nonce"] = nonce
 
-    js = response.json()
-    return js["data"], int(js["recordsTotal"])
+    r = session.post(API_URL, headers=headers, data=json.dumps(payload), timeout=60, verify=False)
 
-def parse_rows(rows):
-    """Clean HTML in each cell and extract links (PDFs, maps) safely"""
-    clean_rows = []
-    for row in rows:
-        clean_row = []
-        for cell in row:
-            if cell is None:
-                clean_row.append("")
+    # If nonce missing/expired, refresh once by revisiting LIST_PAGE and retry
+    if r.status_code in (401, 403):
+        rp = session.get(LIST_PAGE, headers={"User-Agent": DEFAULT_HEADERS["User-Agent"]}, timeout=60, verify=False)
+        rp.raise_for_status()
+        new_nonce = rp.headers.get("X-WP-Nonce") or rp.headers.get("x-wp-nonce") or _try_extract_nonce_from_html(rp.text)
+        if new_nonce:
+            headers["X-WP-Nonce"] = new_nonce
+            r = session.post(API_URL, headers=headers, data=json.dumps(payload), timeout=60, verify=False)
+
+    r.raise_for_status()
+
+    js = r.json()
+    block = js.get("data", {}).get("data", {})
+    html = block.get("html", "")
+    total = int(block.get("totalCount", 0))
+    max_pages = int(block.get("maxPages", 0))
+
+    return html, total, max_pages
+
+
+def _text(el):
+    return el.get_text(" ", strip=True) if el else ""
+
+def parse_certificates_html(html: str, status_value: str = "") -> list:
+    if not html:
+        return []
+
+    soup = BeautifulSoup(html, "lxml")
+    cards = soup.select("div.is-certificate")
+    out = []
+
+    for card in cards:
+        cert_id = _text(card.select_one(".tag"))
+
+        # Validity range
+        date_text = _text(card.select_one(".date"))
+        valid_from = ""
+        valid_until = ""
+        if date_text:
+            parts = [p.strip() for p in date_text.replace("–", "-").split("-") if p.strip()]
+            if len(parts) >= 2:
+                valid_from, valid_until = parts[0], parts[1]
+            elif len(parts) == 1:
+                valid_from = parts[0]
+
+        # Certificate holder (tooltip title has full string)
+        holder_span = card.select_one("h3 span.has-tip")
+        holder_full = holder_span.get("title", "").strip() if holder_span else ""
+        holder_display = _text(holder_span)
+
+        # Suspended period (only appears for suspended certs)
+        suspended_period = ""
+        suspend_el = card.select_one("p.suspend-date")
+        if suspend_el:
+            # This will collapse whitespace and treat <br> as a space
+            s_text = suspend_el.get_text(" ", strip=True)
+            # Example becomes "21.04.26 – 01.06.26" or "21.04.26 - 01.06.26"
+            s_text = s_text.replace("–", "-")
+            s_parts = [p.strip() for p in s_text.split("-") if p.strip()]
+            if len(s_parts) >= 2:
+                suspended_period = f"{s_parts[0]} – {s_parts[1]}"
+            elif len(s_parts) == 1:
+                suspended_period = s_parts[0]
+
+        scope = ""
+        processing_unit_type = ""
+        raw_material = ""
+        products = ""
+        add_ons = ""
+        issuing_cb = ""
+
+        fold_items = card.select(".is-certificate-fold .is-certificate-fold-item")
+        for item in fold_items:
+            title = _text(item.select_one(".title")).lower()
+            value = _text(item.select_one("p:not(.title)"))
+
+            if title == "scope":
+                scope = value
+            elif title == "processing unit type":
+                processing_unit_type = value
+            elif title == "raw material":
+                raw_material = value
+            elif title == "products":
+                products = value
+            elif "add-ons" in title or "add-ons/cts" in title:
+                add_ons = value
+            elif title == "issuing cb":
+                issuing_cb = value
+
+        map_link = ""
+        audit_link = ""
+        cert_link = ""
+
+        for a in card.select("a.custom-button"):
+            label = _text(a).lower()
+            href = (a.get("href") or "").strip()
+            if not href:
                 continue
-            soup = BeautifulSoup(str(cell), "html.parser")
-            
-            # Check if there is an <a> tag and check if the cell contains a tooltip and extract that
-            link = soup.find("a", href=True)
-            tooltip = soup.find("span", class_="has-tip top", tabindex=2)
-            if link:
-                # Extract the href
-                clean_row.append(link["href"].strip())
-            elif tooltip:
-                 clean_row.append(tooltip["title"].strip())
-            else:
-                # Otherwise, just text
-                clean_row.append(soup.get_text(strip=True))    
-        clean_rows.append(clean_row)
-    return clean_rows
+            if "geolocation" in label:
+                map_link = href
+            elif "audit" in label:
+                audit_link = href
+            elif "certificate" in label:
+                cert_link = href
+
+        out.append({
+            "cert_status": status_value,
+            "cert_number": cert_id,
+            "cert_owner": holder_full or holder_display,
+            "cert_scope": scope,
+            "cert_processingunittype": processing_unit_type,
+            "cert_in_put": raw_material,
+            "cert_add_on": add_ons,
+            "cert_products": products,
+            "cert_valid_from": valid_from,
+            "cert_valid_until": valid_until,
+            "cert_suspended_date": suspended_period if status_value == "suspended" else (suspended_period or ""),
+            "cert_issuer": issuing_cb,
+            "cert_map": map_link,
+            "cert_file": cert_link,
+            "cert_audit": audit_link,
+        })
+
+    return out
+
 
 def split_cert_owner(value):
     """Split 'Company, City, Country' into 3 separate columns safely."""
@@ -651,46 +778,69 @@ def split_cert_owner(value):
 
     return "", "", ""
 
-def map_multiple_scopes(scope_value):
-    if not scope_value:
-        return "Unknown"
-    codes = [code.strip() for code in scope_value.split(",")]
-    descriptions = [SCOPE_DESCRIPTIONS.get(code, "No Mapping") for code in codes]
-    return ", ".join(descriptions)
 
-def scrape_all(output_file, page_size, delay):
-    """Scrape all certificates and save to CSV"""
-    nonce = get_fresh_nonce()
-    print("Using nonce:", nonce)
+def scrape_all(output_file, page_size=200, delay=0, search="", valid_from="", valid_until=""):
+    session, nonce = bootstrap_session()
+    print("Initial nonce:", nonce)
 
-    # First page to get total records
-    rows, total_records = fetch_page(start=0, length=page_size, nonce=nonce)
-    print(f"Total certificates: {total_records}")
+    all_rows = []
 
-    all_rows = parse_rows(rows)
+    for status in STATUS_TYPES:
+        print(f"\n--- Scraping status bucket: {status} ---")
 
-    for start in range(page_size, total_records, page_size):
-        print(f"Fetching rows {start} to {start+page_size}...")
-        try:
-            rows, _ = fetch_page(start=start, length=page_size, nonce=nonce)
-            if not rows:
-                print("No more rows returned, stopping.")
+        html, total_records, max_pages = fetch_certificates_page(
+            session=session,
+            page=1,
+            count=page_size,
+            search=search,
+            valid_from=valid_from,
+            valid_until=valid_until,
+            nonce=nonce,
+            status_filter=status,
+        )
+
+        print(f"{status}: Total certificates: {total_records}, max pages: {max_pages}")
+
+        rows = parse_certificates_html(html, status_value=status)
+        all_rows.extend(rows)
+
+        for page in range(2, max_pages + 1):
+            if page % 50 == 0:
+                print(f"{status}: Fetching page {page} of {max_pages} ...")
+
+            try:
+                html, _, _ = fetch_certificates_page(
+                    session=session,
+                    page=page,
+                    count=page_size,
+                    search=search,
+                    valid_from=valid_from,
+                    valid_until=valid_until,
+                    nonce=nonce,
+                    status_filter=status,
+                )
+
+                rows = parse_certificates_html(html, status_value=status)
+                if not rows:
+                    print(f"{status}: No rows returned on page {page}, stopping this bucket.")
+                    break
+
+                all_rows.extend(rows)
+                if delay:
+                    time.sleep(delay)
+
+            except Exception as e:
+                print(f"Error on status {status}, page {page}: {e}")
                 break
-            all_rows.extend(parse_rows(rows))
-            time.sleep(delay) # polite delay
-        except Exception as e:
-            print(f"Error fetching page starting at {start}: {e}")
-            break
-    
-    # Save to XLSX
+
+    # Build DataFrame
     df = pd.DataFrame(all_rows, columns=COLUMNS)
 
-    # Insert "scope_description" after "scope"
-    scope_index = df.columns.get_loc("cert_scope") + 1
-    df.insert(scope_index, "Scope_Description", df["cert_scope"].apply(map_multiple_scopes))
-
-    # Insert "Processing_Unit_Type_Description"
-    df.insert(scope_index + 2, "Processing_Unit_Type_Description", df["cert_processingunittype"].apply(map_multiple_scopes))
+    # Optional: Deduplicate by cert_number with status priority
+    if not df.empty:
+        df["_status_rank"] = df["cert_status"].map(lambda x: STATUS_PRIORITY.get(x, 999))
+        df = df.sort_values(["cert_number", "_status_rank"]).drop_duplicates(subset=["cert_number"], keep="first")
+        df = df.drop(columns=["_status_rank"])
 
     # Extract new cert_owner fields
     company_series, city_series, country_series = zip(*df["cert_owner"].apply(split_cert_owner))
@@ -706,56 +856,50 @@ def scrape_all(output_file, page_size, delay):
 
     df["City"] = df["cert_owner"].apply(get_city_name)
 
-    # Add the facility grouping column
-    df.insert(
-        df.columns.get_loc("Scope_Description") + 1,
-        "Facility_Grouping",
-        df["cert_scope"].apply(determine_facility_grouping)
-    )
-
-    columns_to_remove = ["cert_ikon"]  # Add more if needed
-    df = df.drop(columns=columns_to_remove)
-
     df.insert(df.columns.get_loc("cert_number") + 1, "Certificate_Type", df["cert_number"].apply(map_certificate_type))
     df.insert(df.columns.get_loc("Country") + 1, "Region", df["Country"].apply(map_region))
     df.insert(df.columns.get_loc("Country") + 2, "Sub_Region", df["Country"].apply(map_subregion))
-    df.insert(0, "Status", df["cert_status"].apply(map_status))
+
+    # Fill Status column from cert_status (string), not numeric map_status
+    df["cert_status"] = df["cert_status"].astype(str).str.capitalize()
+
     df.insert(df.columns.get_loc("cert_number") + 2, "Certificate_Class", df["Certificate_Type"].apply(map_certificate_class))
     df.insert(df.columns.get_loc("cert_map") + 1, "Latitude", df["cert_map"].apply(get_latitude))
     df.insert(df.columns.get_loc("cert_map") + 2, "Longitude", df["cert_map"].apply(get_longitude))
 
     df = df.rename(columns=COLUMN_MAP)
 
-    # Normalise to remove whitespaces and invisible characters that could break further logic
+    # Add the facility grouping column
+    df.insert(
+        df.columns.get_loc("Scope") + 1,
+        "Facility_Grouping",
+        df["Scope"].apply(determine_facility_grouping)
+    )
+
+    # Normalise to remove whitespaces and invisible characters
     df = df.map(clean_excel_string)
 
     df = overwrite_company_with_gst_shortname_exact(df, GST_ASSETS, score_threshold=75)
-
     df = add_asset_identifier_and_match(df, GST_ASSETS)
 
-    # Add new column called Asset_Identifier for ones where match found, otherwise keep blank
     df["Asset_Identifier"] = np.where(
         df["Match_Found"] == 1,
         df["Company_City"],
         None
     )
 
-    # extra cleaning
     df = df.replace(r"^\s*nan\s*$", "", regex=True)
-    
+
     exclude = {"Scope_Description", "Processing_Unit_Type_Description",
-                "Map", "Certificate", "Audit_Report", "Products", "Add-ons** /CTS"} 
+               "Map", "Certificate", "Audit_Report", "Products", "Add-ons** /CTS"}
 
     text_cols = [c for c in df.select_dtypes(include="object").columns if c not in exclude]
-
     df[text_cols] = df[text_cols].replace(r'[\\/\"\'„“»«]', "", regex=True)
 
-
-    # Save and add styles
     df.to_excel(output_file, index=False, engine="openpyxl", sheet_name="Certificate Database")
-
-    print(f"Scraping complete! Saved {len(df)} rows to {output_file}")
+    print(f"\nScraping complete! Saved {len(df)} rows to {output_file}")
 
 # TODO: clean up this file from a commenting POV
+# TODO: Setup the the correct SSL verify flag in the requests calls. For now, we are ignoring SSL warnings and setting verify=False in the requests calls to avoid SSL errors. This is not recommended for production use, but it allows us to proceed with scraping without SSL issues. We should investigate the root cause of the SSL errors and fix them properly in the future.
 
 
