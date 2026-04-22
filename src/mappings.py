@@ -22,7 +22,7 @@ FACILITY_GROUPING_MAP = {
     "Central Office (Group of farms/plantations)": "Feedstock for Biofuels Companies",
     "Central Office (Group of Points of Origin)": "Feedstock for Biofuels Companies",
     "Collecting Point (for waste/residue material not grown/harvested on farms/plantations)": "Feedstock for Biofuels Companies",
-    "Farm/Plantation": "Feedstock for Biofuels Companies",
+    "Farm / Plantation": "Feedstock for Biofuels Companies",
     "First Gathering Point (for biomass grown/harvested on farms/plantations)": "Feedstock for Biofuels Companies",
     "Food processing plant": "Feedstock for Biofuels Companies",
     "Central Office for Independent Smallholders": "Feedstock for Biofuels Companies",
@@ -52,7 +52,7 @@ FACILITY_GROUPING_MAP = {
     # Add here
 
     # Transport & Logistics Companies
-    "Logistic Center": "Transport & Logistics Companies",
+    "Logistics Center": "Transport & Logistics Companies",
     "Transport Company": "Transport & Logistics Companies",
     # Add here
 
@@ -385,4 +385,4 @@ ALL_COUNTRIES = {
     "Zimbabwe": "ZW"
 }
 
-#  <h3 class=\"h4\"><span data-tooltip aria-haspopup=\"1\" class=\"has-tip top\"
+# total = 88092

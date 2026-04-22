@@ -45,9 +45,9 @@ STATUS_PRIORITY = {s: i for i, s in enumerate(["withdrawn", "terminated", "suspe
 
 # Column names (from table)
 COLUMNS = [
-    "cert_number","cert_owner","cert_scope","cert_processingunittype","cert_in_put","cert_add_on",
+    "cert_status", "cert_number","cert_owner","cert_scope","cert_processingunittype","cert_in_put","cert_add_on",
     "cert_products","cert_valid_from","cert_valid_until","cert_suspended_date",
-    "cert_issuer","cert_map","cert_file","cert_audit","cert_status"
+    "cert_issuer","cert_map","cert_file","cert_audit"
 ]
 
 
@@ -485,9 +485,9 @@ def get_city_name(cert_owner):
     return None
 
 def get_lat_lon(link):
-    if not isinstance(link, str) or "maps/place" not in link:
+    if not isinstance(link, str) or "maps/place/" not in link:
         return None, None
-    coords = link.split("maps/place")[-1].split("+")
+    coords = link.split("maps/place/")[-1].split("+")
     # Filter out empty strings
     coords = [c.strip() for c in coords if c.strip() and c.strip() != "0.000000"]
     if len(coords) >= 2:
