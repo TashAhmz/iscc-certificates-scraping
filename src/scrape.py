@@ -641,7 +641,10 @@ def fetch_certificates_page(
 
     r.raise_for_status()
 
-    js = r.json()
+    try:
+        js = r.json()
+    except requests.exceptions.JSONDecodeError:
+        js = json.loads(r.content.decode("utf-8-sig"))
     block = js.get("data", {}).get("data", {})
     html = block.get("html", "")
     total = int(block.get("totalCount", 0))
