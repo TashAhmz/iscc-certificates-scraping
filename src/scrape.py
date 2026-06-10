@@ -40,6 +40,7 @@ DEFAULT_HEADERS = {
 STATUS_TYPES = ["valid", "suspended", "expired", "terminated", "withdrawn"]
 
 
+
 STATUS_PRIORITY = {s: i for i, s in enumerate(["withdrawn", "terminated", "suspended", "expired", "valid"])}
 
 
@@ -659,7 +660,7 @@ def _text(el):
 def parse_certificates_html(html: str, status_value: str = "") -> list:
     if not html:
         return []
-
+    html = re.sub(r"<\\?xml.*?\\?>", "", html, flags=re.DOTALL)
     soup = BeautifulSoup(html, "lxml")
     cards = soup.select("div.is-certificate")
     out = []
