@@ -5,6 +5,7 @@ from io import BytesIO
 import urllib3
 import re
 from datetime import datetime
+import timeit
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -116,13 +117,22 @@ def export_tables_to_excel(
     return output_path
 
 
-pdf_url = "https://hub.iscc-system.org/FileHandler/download/certificateFile/ODYyMjBfRVUtSVNDQy1DZXJ0LURFMTAwLTAxMzAwMTI1"
+pdf_url = "https://hub.iscc-system.org/FileHandler/download/certificateFile/MTA3OTczX0VVLUlTQ0MtQ2VydC1ERTEwMC0wNzIwOTEyNQ=="
 tables = extract_tables_from_iscc_pdf(pdf_url)
 
 print(f"Extracted {len(tables)} tables")
 
-out_file = export_tables_to_excel(tables)
-print(f"Exported to: {out_file}")
+#out_file = export_tables_to_excel(tables)
+#print(f"Exported to: {out_file}")
 
 if tables:
     print(tables[0].head())
+
+
+execution_time = timeit.timeit(
+    stmt="extract_tables_from_iscc_pdf(pdf_url)",
+    number=1,
+    globals=globals()
+)
+
+print(f"Average execution time: {execution_time / 1:.6f} seconds")

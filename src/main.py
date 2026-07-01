@@ -18,7 +18,7 @@ if __name__ == "__main__":
     scrape_all(delay=DELAY, page_size=ROWS_LOADED, output_file=output_file)
     apply_styles(output_file, "Certificate Database")
 
-"""
+
     try: 
         with open("src/utils.json", "r") as f1: 
             data = json.load(f1)
@@ -26,7 +26,7 @@ if __name__ == "__main__":
         print(f"{f1.name} is empty")
 
     prev_filename = data.get("prev_file_name")
-    
+
     if prev_filename:
         create_certs_added(prev_filename, output_file)
         print()
@@ -44,9 +44,3 @@ if __name__ == "__main__":
             json.dump({"prev_file_name": f"{output_file}"}, f2)
     except json.JSONDecodeError:
         print(f"{f2.name} is empty")
-"""
-# total 88042
-# total valid 15839
-# total terminated 660
-# sum of valid, suspened and withdrawn = 16487
-# total expired 70880

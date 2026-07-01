@@ -30,13 +30,36 @@ city_stopwords = set(s.lower() for s in CITY_STOPWORDS)
 # Headers
 
 DEFAULT_HEADERS = {
-    "Accept": "application/json, text/plain, */*",
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9,en-GB;q=0.8",
     "Content-Type": "application/json",
     "Origin": "https://iscc-system.org",
-    "Referer": LIST_PAGE,
-    "User-Agent": "Mozilla/5.0",
+    "Referer": "https://iscc-system.org/certification/all-certificates/",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    ),
+    "sec-ch-ua": '"Microsoft Edge";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
 }
 
+
+def bootstrap_session() -> requests.Session:
+    s = requests.Session()
+    s.headers.update(DEFAULT_HEADERS)
+
+    # Visit page first to collect normal public cookies.
+    r = s.get(LIST_PAGE, timeout=60, verify=False)
+    r.raise_for_status()
+
+    print("Cookies:", s.cookies.get_dict())
+
+    return s
 STATUS_TYPES = ["valid", "suspended", "expired", "terminated", "withdrawn"]
 
 
@@ -570,35 +593,6 @@ def clean_excel_string(x):
 # Scraping Logic
 ####################################################################
 
-def _try_extract_nonce_from_html(html: str) -> str | None:
-    # Common WordPress pattern: a JS object with "nonce":"..."
-    m = re.search(r'"nonce"\s*:\s*"([^"]+)"', html)
-    if m:
-        return m.group(1).strip()
-
-    soup = BeautifulSoup(html, "html.parser")
-    meta = soup.find("meta", attrs={"name": re.compile(r"x-wp-nonce", re.I)})
-    if meta and meta.get("content"):
-        return meta["content"].strip()
-
-    return None
-
-def bootstrap_session() -> tuple[requests.Session, str | None]:
-    """
-    Creates a session and visits the list page first (cookies).
-    Returns (session, nonce_if_found).
-    The REST API nonce is usually sent via X-WP-Nonce header. [2](https://developer.wordpress.org/rest-api/using-the-rest-api/authentication/)
-    """
-    s = requests.Session()
-    r = s.get(LIST_PAGE, headers={"User-Agent": DEFAULT_HEADERS["User-Agent"]}, timeout=60, verify=False)
-    r.raise_for_status()
-
-    nonce = r.headers.get("X-WP-Nonce") or r.headers.get("x-wp-nonce")
-    if nonce:
-        return s, nonce.strip()
-
-    nonce = _try_extract_nonce_from_html(r.text)
-    return s, nonce
 
 def fetch_certificates_page(
     session: requests.Session,
@@ -607,12 +601,9 @@ def fetch_certificates_page(
     search: str = "",
     valid_from: str = "",
     valid_until: str = "",
-    nonce: str | None = None,
     status_filter: str | None = None,
 ) -> tuple[str, int, int]:
-    """
-    Returns (html, totalCount, maxPages)
-    """
+
     payload = {
         "valid_from": valid_from,
         "valid_until": valid_until,
@@ -621,38 +612,25 @@ def fetch_certificates_page(
         "page": int(page),
     }
 
-    # Add status filter when provided
     if status_filter:
         payload["filters"] = {"status": [status_filter]}
 
-    headers = dict(DEFAULT_HEADERS)
-    if nonce:
-        headers["X-WP-Nonce"] = nonce
+    r = session.post(API_URL, json=payload, timeout=60, verify=False)
 
-    r = session.post(API_URL, headers=headers, data=json.dumps(payload), timeout=60, verify=False)
-
-    # If nonce missing/expired, refresh once by revisiting LIST_PAGE and retry
-    if r.status_code in (401, 403):
-        rp = session.get(LIST_PAGE, headers={"User-Agent": DEFAULT_HEADERS["User-Agent"]}, timeout=60, verify=False)
-        rp.raise_for_status()
-        new_nonce = rp.headers.get("X-WP-Nonce") or rp.headers.get("x-wp-nonce") or _try_extract_nonce_from_html(rp.text)
-        if new_nonce:
-            headers["X-WP-Nonce"] = new_nonce
-            r = session.post(API_URL, headers=headers, data=json.dumps(payload), timeout=60, verify=False)
+    if r.status_code != 200:
+        print("Status:", r.status_code)
+        print("Response body:", r.text[:3000])
 
     r.raise_for_status()
 
-    try:
-        js = r.json()
-    except requests.exceptions.JSONDecodeError:
-        js = json.loads(r.content.decode("utf-8-sig"))
+    js = r.json()
     block = js.get("data", {}).get("data", {})
+
     html = block.get("html", "")
     total = int(block.get("totalCount", 0))
     max_pages = int(block.get("maxPages", 0))
 
     return html, total, max_pages
-
 
 def _text(el):
     return el.get_text(" ", strip=True) if el else ""
@@ -784,8 +762,7 @@ def split_cert_owner(value):
 
 
 def scrape_all(output_file, page_size=200, delay=0, search="", valid_from="", valid_until=""):
-    session, nonce = bootstrap_session()
-    print("Initial nonce:", nonce)
+    session = bootstrap_session()
 
     all_rows = []
 
@@ -799,7 +776,6 @@ def scrape_all(output_file, page_size=200, delay=0, search="", valid_from="", va
             search=search,
             valid_from=valid_from,
             valid_until=valid_until,
-            nonce=nonce,
             status_filter=status,
         )
 
@@ -820,7 +796,6 @@ def scrape_all(output_file, page_size=200, delay=0, search="", valid_from="", va
                     search=search,
                     valid_from=valid_from,
                     valid_until=valid_until,
-                    nonce=nonce,
                     status_filter=status,
                 )
 
