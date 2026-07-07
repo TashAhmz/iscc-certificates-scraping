@@ -19,13 +19,14 @@ FACILITY_GROUPING_MAP = {
     # Add here
 
     # Feedstock for Biofuels Companies
-    "Central Office (Group of farms/plantations)": "Feedstock for Biofuels Companies",
-    "Central Office (Group of Points of Origin)": "Feedstock for Biofuels Companies",
-    "Collecting Point (for waste/residue material not grown/harvested on farms/plantations)": "Feedstock for Biofuels Companies",
+    "Central Office (Farms/Plantations)": "Feedstock for Biofuels Companies",
+    "Central Office (FarmsPlantations)": "Feedstock for Biofuels Companies",
+    "Central Office (Group of Point of Origin)": "Feedstock for Biofuels Companies",
+    "Collecting Point": "Feedstock for Biofuels Companies",
     "Farm / Plantation": "Feedstock for Biofuels Companies",
-    "First Gathering Point (for biomass grown/harvested on farms/plantations)": "Feedstock for Biofuels Companies",
+    "First Gathering Point": "Feedstock for Biofuels Companies",
     "Food processing plant": "Feedstock for Biofuels Companies",
-    "Central Office for Independent Smallholders": "Feedstock for Biofuels Companies",
+    "Central Office of independent Smallholders": "Feedstock for Biofuels Companies",
     "Melting plant": "Feedstock for Biofuels Companies",
     "Oil mill": "Feedstock for Biofuels Companies",
     "Other conversion unit": "Feedstock for Biofuels Companies",
@@ -35,6 +36,7 @@ FACILITY_GROUPING_MAP = {
     "Pyrolysis plant": "Feedstock for Biofuels Companies",
     "Sugar mill": "Feedstock for Biofuels Companies",
     "Treatment plant for waste/residues": "Feedstock for Biofuels Companies",
+    "Biomarine Fuel Operator": "Feedstock for Biofuels Companies",
     # Add here
 
     # Other Processing Plants/Units
@@ -71,7 +73,7 @@ FACILITY_GROUPING_MAP = {
     # Trading Companies
     "Proof of Compliance Trader": "Trading Companies",
     "Trader": "Trading Companies",
-    "Trader with storage": "Trading Companies"
+    "Trader with Storage": "Trading Companies"
     # Add here
 }
 
