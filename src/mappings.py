@@ -1,14 +1,12 @@
-# Create a dictionary that maps each Scope* abbreviation to a broader facility category
 FACILITY_GROUPING_MAP = {
 
-    # Non-liquid biofuels assets
+    # Non-liquid Biofuels Assets
     "Biogas plant": "Non-liquid Biofuels Assets",
     "Biomethane plant": "Non-liquid Biofuels Assets",
     "LNG terminal": "Non-liquid Biofuels Assets",
     "Liquefaction Plant": "Non-liquid Biofuels Assets",
-    # Add here
 
-    # LCF Trading liquid biofuels assets
+    # LCF Trading Liquid Biofuels Assets
     "Biodiesel plant": "LCF Trading Liquid Biofuels Assets",
     "Co-Processing plant": "LCF Trading Liquid Biofuels Assets",
     "Ethanol plant": "LCF Trading Liquid Biofuels Assets",
@@ -16,33 +14,32 @@ FACILITY_GROUPING_MAP = {
     "MTBE plant": "LCF Trading Liquid Biofuels Assets",
     "HEFA plant": "LCF Trading Liquid Biofuels Assets",
     "HVO plant": "LCF Trading Liquid Biofuels Assets",
-    # Add here
 
     # Feedstock for Biofuels Companies
     "Central Office (Farms/Plantations)": "Feedstock for Biofuels Companies",
     "Central Office (FarmsPlantations)": "Feedstock for Biofuels Companies",
     "Central Office (Group of Point of Origin)": "Feedstock for Biofuels Companies",
+    "Central Office (Group of FA)": "Feedstock for Biofuels Companies",
+    "Central Office of independent Smallholders": "Feedstock for Biofuels Companies",
     "Collecting Point": "Feedstock for Biofuels Companies",
     "Farm / Plantation": "Feedstock for Biofuels Companies",
+    "Farm Plantation": "Feedstock for Biofuels Companies",
     "First Gathering Point": "Feedstock for Biofuels Companies",
     "Food processing plant": "Feedstock for Biofuels Companies",
-    "Central Office of independent Smallholders": "Feedstock for Biofuels Companies",
     "Melting plant": "Feedstock for Biofuels Companies",
     "Oil mill": "Feedstock for Biofuels Companies",
     "Other conversion unit": "Feedstock for Biofuels Companies",
-    "Pulp mill": "Feedstock for Biofuels Companies",
     "Point of Origin": "Feedstock for Biofuels Companies",
-    "Processing Unit": "Feedstock for Biofuels Companies",
+    "Pulp mill": "Feedstock for Biofuels Companies",
     "Pyrolysis plant": "Feedstock for Biofuels Companies",
     "Sugar mill": "Feedstock for Biofuels Companies",
     "Treatment plant for waste/residues": "Feedstock for Biofuels Companies",
+    "Treatment plant for waste residues": "Feedstock for Biofuels Companies",
     "Biomarine Fuel Operator": "Feedstock for Biofuels Companies",
-    # Add here
 
     # Other Processing Plants/Units
     "Compounding plant": "Other Processing Plants/Units",
     "Converter": "Other Processing Plants/Units",
-    "Methanol plant": "Other Processing Plants/Units",
     "Mechanical Recycling Plant": "Other Processing Plants/Units",
     "Polymerization plant": "Other Processing Plants/Units",
     "Refinery": "Other Processing Plants/Units",
@@ -51,30 +48,33 @@ FACILITY_GROUPING_MAP = {
     "Final Product Refinement": "Other Processing Plants/Units",
     "Forest sourcing area": "Other Processing Plants/Units",
     "Warehouse": "Other Processing Plants/Units",
-    # Add here
 
     # Transport & Logistics Companies
     "Logistics Center": "Transport & Logistics Companies",
     "Transport Company": "Transport & Logistics Companies",
-    # Add here
 
     # Electricity Assets
     "Installation producing energy (electricity, heating or cooling) from bioliquids": "Electricity Assets",
     "Installation producing energy (electricity, heating or cooling) from solid biomass": "Electricity Assets",
+    "Installation producing energy (electricity, heating or cooling) from biogas": "Electricity Assets",
     "Installation producing energy (electricity, heating or cooling) from raw biogas": "Electricity Assets",
     "Installation producing energy (electricity, heating or cooling) from biomethane": "Electricity Assets",
-    # Add here
+
+    # E-Fuels / RFNBO Assets
+    "Electrolyser": "E-Fuels / RFNBO Assets",
+    "Methanol plant": "E-Fuels / RFNBO Assets",
+    "Installation Consuming RFNBOs": "E-Fuels / RFNBO Assets",
 
     # Chemicals Assets
     "Plastic Waste Processor": "Chemicals Assets",
+    "Plastic waste processor": "Chemicals Assets",
     "Speciality Chemical Plant": "Chemicals Assets",
-    # Add here
+    "Specialty chemical plant": "Chemicals Assets",
 
     # Trading Companies
     "Proof of Compliance Trader": "Trading Companies",
     "Trader": "Trading Companies",
-    "Trader with Storage": "Trading Companies"
-    # Add here
+    "Trader with Storage": "Trading Companies",
 }
 
 MANUAL_COUNTRY_OVERRIDES = {

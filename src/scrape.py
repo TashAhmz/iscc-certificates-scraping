@@ -448,16 +448,52 @@ def overwrite_company_with_gst_shortname_exact(
 
 # Define a function to determine the facility grouping based on Scope* codes
     # It checks each abbreviation and returns the matching group(s)
-def determine_facility_grouping(scope_text):
-    if not isinstance(scope_text, str):
-        return ""
-    abbreviations = [abbr.strip() for abbr in scope_text.split(",")]
+def determine_facility_grouping(row):
+
     groupings = set()
-    for abbr in abbreviations:
-        group = FACILITY_GROUPING_MAP.get(abbr)
-        if group:
-            groupings.add(group)
+
+    scope_text = row.get("Scope", "")
+    processing_unit_type = row.get("Processing_Unit_Type", "")
+
+    # Process Scope values
+    if isinstance(scope_text, str):
+
+        scope_values = [
+            value.strip()
+            for value in scope_text.split(",")
+            if value.strip()
+        ]
+
+        for value in scope_values:
+
+            # Skip Processing Unit since we'll use Processing_Unit_Type instead
+            if value == "Processing Unit":
+                continue
+
+            group = FACILITY_GROUPING_MAP.get(value)
+            if group:
+                groupings.add(group)
+
+    # If Processing Unit is present in Scope, also process Processing_Unit_Type
+    if (
+        isinstance(scope_text, str)
+        and "Processing Unit" in scope_text
+        and isinstance(processing_unit_type, str)
+    ):
+
+        pu_values = [
+            value.strip()
+            for value in processing_unit_type.split(",")
+            if value.strip()
+        ]
+
+        for value in pu_values:
+            group = FACILITY_GROUPING_MAP.get(value)
+            if group:
+                groupings.add(group)
+
     return ", ".join(sorted(groupings)) if groupings else "Unclassified"
+
 
 def get_country_name(c):
     exempt_words = ["of", "the", "and"]
@@ -852,7 +888,7 @@ def scrape_all(output_file, page_size=200, delay=0, search="", valid_from="", va
     df.insert(
         df.columns.get_loc("Scope") + 1,
         "Facility_Grouping",
-        df["Scope"].apply(determine_facility_grouping)
+        df.apply(determine_facility_grouping, axis=1)
     )
 
     # Normalise to remove whitespaces and invisible characters
