@@ -56,9 +56,14 @@ FACILITY_GROUPING_MAP = {
     # Electricity Assets
     "Installation producing energy (electricity, heating or cooling) from bioliquids": "Electricity Assets",
     "Installation producing energy (electricity, heating or cooling) from solid biomass": "Electricity Assets",
+    "Installation producing energy (electricity , heating or cooling) from solid biomass": "Electricity Assets",
     "Installation producing energy (electricity, heating or cooling) from biogas": "Electricity Assets",
     "Installation producing energy (electricity, heating or cooling) from raw biogas": "Electricity Assets",
     "Installation producing energy (electricity, heating or cooling) from biomethane": "Electricity Assets",
+    "Installation producing energy (electricity , heating or cooling) from liquid biomass":"Electricity Assets",
+    "Installation producing energy (electricity , heating or cooling) bioliquids": "Electricity Assets",
+    "Installation producing energy (electricity , heating or cooling) from biomethane": "Electricity Assets",
+
 
     # E-Fuels / RFNBO Assets
     "Electrolyser": "E-Fuels / RFNBO Assets",

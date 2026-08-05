@@ -884,6 +884,8 @@ def scrape_all(output_file, page_size=200, delay=0, search="", valid_from="", va
 
     df = df.rename(columns=COLUMN_MAP)
 
+    df["Processing_Unit_Type"] = df["Processing_Unit_Type"].str.replace(" | ", ", ", regex=False)
+
     # Add the facility grouping column
     df.insert(
         df.columns.get_loc("Scope") + 1,
