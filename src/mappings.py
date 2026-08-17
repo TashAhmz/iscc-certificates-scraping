@@ -15,6 +15,22 @@ FACILITY_GROUPING_MAP = {
     "HEFA plant": "LCF Trading Liquid Biofuels Assets",
     "HVO plant": "LCF Trading Liquid Biofuels Assets",
 
+     # HEFA plants
+    "HEFA plant": "HEFA plant",
+
+    # Co-processing plants
+    "Co-Processing plant": "Co-processing plant",
+
+    #Biodiesel plants
+    "Biodiesel plant": "Biodiesel plant",
+
+    # Ethanol plants
+    "Ethanol plant": "Ethanol plant",
+
+    # HVO plants
+    "HVO plant": "HVO plant",
+     
+
     # Feedstock for Biofuels Companies
     "Central Office (Farms/Plantations)": "Feedstock for Biofuels Companies",
     "Central Office (FarmsPlantations)": "Feedstock for Biofuels Companies",
