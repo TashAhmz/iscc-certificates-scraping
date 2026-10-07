@@ -32,7 +32,11 @@ if __name__ == "__main__":
         print()
         create_certs_removed(prev_filename, output_file)
         print()
-        create_certs_changed(prev_filename, output_file, ignore_cols=["Map", "Company_Name", "City", "Asset_Identifier", "Match_Found"])
+        create_certs_changed(prev_filename, output_file, ignore_cols=["Map", "Company_Name", "City", "Asset_Identifier", "Match_Found", "Suggested_Asset_Identifier", "Matcher_Version", "Match_Status", "Match_Confidence", "Match_Method",
+"Auto_Match_Eligible", "Is_Processing_Unit", "Matched_GST_Company", "Best_GST_Company_Candidate", "Company_Match_Method", "Company_Match_Evidence", "Matched_Territory", "Company_Score", "Company_Score_Margin",
+"Asset_Company_Score", "Asset_Company_Match_Method", "Asset_Company_Match_Evidence", "Location_Score", "Location_Match_Method", "Overall_Score", "Score_Margin", "Candidate_Count", "Candidate_Site_Count", "Matched_Site_Key",
+"Runner_Up_Asset", "Runner_Up_Score", "Review_Reason"])
+        
         print()
 
         apply_styles(output_file, "Certificates Added")
